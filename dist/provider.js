@@ -1,6 +1,9 @@
 import { protectData } from './security.js';
 const config = { model:'openai/gpt-4.1-mini', reviewModel:'', researchModel:'',classification:'internal',redact:true,terms:'',consent:false,enabled:false };
 let serverReady=false;
+let connection='checking',discovery=null;
+const connectionMessages={checking:'制作の接続を確認しています。',missing_key:'制作の接続準備がまだ完了していません。運営者に接続設定をご確認ください。入力した資料はそのまま保持しています。',invalid_key:'制作の接続設定を運営者に確認してください。入力した資料はそのまま保持しています。',model_not_configured:'制作サービスの接続先を運営者に確認してください。',credit_required:'制作サービスの利用枠を運営者に確認してください。',rate_limited:'制作サービスが混み合っています。少し待って接続を再確認してください。',unreachable:'制作サービスとの接続を確認できませんでした。接続を再確認してください。',ready:'制作サービスに接続できました。',not_checked:'制作の接続設定を確認しました。'};
+export function connectionMessage(){return connectionMessages[connection]||connectionMessages.unreachable;}
 export function configureAI(next) {
   for (const field of ['model','reviewModel','researchModel']) config[field] = String(next[field] || '').trim();
   if (!config.model) config.model = 'openai/gpt-4.1-mini';
@@ -11,9 +14,16 @@ export function configureAI(next) {
   if(typeof next.enabled==='boolean')config.enabled=next.enabled;
 }
 export function aiConfigured() { return config.enabled&&serverReady; }
-export function aiSettings() { return { model:config.model,reviewModel:config.reviewModel,researchModel:config.researchModel,classification:config.classification,redact:config.redact,terms:config.terms,consent:config.consent,serverReady }; }
+export function aiSettings() { return { model:config.model,reviewModel:config.reviewModel,researchModel:config.researchModel,classification:config.classification,redact:config.redact,terms:config.terms,consent:config.consent,serverReady,connection }; }
 export function protectedInput(input){return protectData(input,config);}
-export async function discoverServer(){try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok){const status=await r.json();serverReady=!!status.configured;}}catch{}globalThis.window?.dispatchEvent(new Event('ai:configured'));}
+export async function discoverServer({verify=false}={}){
+  if(discovery){await discovery;return verify?discoverServer({verify:true}):{serverReady,connection};}
+  discovery=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+    try{const r=await fetch(verify?'/api/connection':'/api/status',{method:verify?'POST':'GET',cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error('connection');const status=await r.json();serverReady=status.configured===true;connection=status.connection||(serverReady?'not_checked':'missing_key');if(typeof status.defaultModel==='string'&&status.defaultModel)config.model=status.defaultModel;}
+    catch{serverReady=false;connection='unreachable';}finally{clearTimeout(timer);globalThis.window?.dispatchEvent(new Event('ai:configured'));}
+    return {serverReady,connection};
+  })();try{return await discovery;}finally{discovery=null;}
+}
 export function modelFor(role) { return (role==='review'?config.reviewModel:role==='research'?config.researchModel:'') || config.model; }
 export async function callAgent({ id, role='generation', instruction, input, schema, signal, web=false, maxTokens=4500 }) {
   if (!aiConfigured()) throw new Error('AI制作は現在利用できません。資料の取り扱いを確認し、改善しない場合は運営者にお問い合わせください。');
@@ -30,6 +40,9 @@ export async function callAgent({ id, role='generation', instruction, input, sch
   try {
     response=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json','X-Data-Classification':config.classification,'X-Data-Consent':config.consent?'confirmed':'','X-Redact-Pii':config.redact?'true':'false'},body:JSON.stringify(body),signal:controller.signal});
     if(!response.ok){
+      let code='';try{code=(await response.json()).error;}catch{}
+      const reasons={openrouter_key_required:'制作の接続設定を運営者に確認してください。',provider_auth_failed:'制作サービスの認証を確認できませんでした。運営者に接続設定をご確認ください。',provider_credit_required:'制作サービスの利用枠を運営者に確認してください。',provider_policy_unavailable:'資料を保護する条件に合う接続先が見つかりません。運営者に接続先をご確認ください。',provider_model_unavailable:'指定された制作サービスを利用できません。運営者に接続先をご確認ください。',provider_route_unavailable:'今回の処理に対応する接続先が見つかりません。運営者に接続先をご確認ください。',provider_access_denied:'制作サービスの利用権限を運営者に確認してください。',provider_unavailable:'制作サービスを現在利用できません。時間をおいて再開してください。',provider_rate_limited:'制作サービスが混み合っています。少し待って、続きから再開してください。',provider_request_rejected:'制作サービスが入力形式を受け付けませんでした。運営者にご確認ください。'};
+      if(reasons[code])throw new Error(reasons[code]);
       const messages={400:'入力内容を確認してください。改善しない場合は運営者にお問い合わせください。',401:'AIの接続設定を運営者に確認してください。',402:'AIの利用枠を運営者に確認してください。',403:'アクセス権限・機密区分・送信同意を確認してください。',404:'記事の作成を利用できません。時間をおいてお試しください。',408:'応答が時間内に届きませんでした。',413:'資料が大きすぎます。',422:'資料内の認証情報・個人情報、または根拠を確認してください。',429:'利用上限、または混雑状況を確認してください。',502:'応答が届きませんでした。時間をおいて再開してください。',503:'資料の取り扱い条件を満たす接続先を現在利用できません。'};
       throw new Error(`作業を完了できませんでした。${messages[response.status]||'しばらくしてから再開してください。'}`);
     }

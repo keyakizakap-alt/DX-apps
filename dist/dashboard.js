@@ -1,4 +1,5 @@
-import {workflowSnapshot,showWorkflow,openAgent} from './workflow.js';
+import {workflowSnapshot,showWorkflow,openAgent,executeTask} from './workflow.js';
+import {findTasks,isProductionRequest} from './tasks.js';
 import {WORKFLOW_AGENTS} from './agents.js';
 import {aiSettings,aiConfigured} from './provider.js';
 import {nextAction,attentionItems} from './supervisor.js';
@@ -7,7 +8,7 @@ import {productionProgress} from './progress.js';
 import {renderKnowledge} from './knowledge-ui.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const phaseLabels={ready:'準備中',running:'進行中',awaiting_review:'確認待ち',awaiting_transcript:'取材待ち',awaiting_metrics:'公開準備完了',completed:'制作完了',cancelled:'停止中',failed:'要対応',budget_exceeded:'処理上限'};
+const phaseLabels={ready:'準備中',task_completed:'作業完了',running:'進行中',awaiting_review:'確認待ち',awaiting_transcript:'取材待ち',awaiting_metrics:'公開準備完了',completed:'制作完了',cancelled:'停止中',failed:'要対応',budget_exceeded:'処理上限'};
 const statusLabels={queued:'未着手',running:'進行中',done:'完了',awaiting:'入力待ち',failed:'要対応',cancelled:'停止'};
 let section='dashboard',deadline='',notes='',query='',center,notifications=[],desktopEnabled=false;
 const notificationsOpen=new Set();
@@ -26,6 +27,7 @@ function openAction(action){
   showWorkflow();
   if(action==='publication'&& !$('workflow-approve-publication').disabled){$('workflow-approve-publication').click();return;}
   if(action==='risk'){$('approval-panel').scrollIntoView({behavior:'smooth',block:'center'});$('approval-reason').focus();return;}
+  if(action==='continue'){$('workflow-run').scrollIntoView({behavior:'smooth',block:'center'});return;}
   if(['brief','transcript','metrics'].includes(action)){$('brief-details').open=true;if(action==='transcript')$('materials-details').open=true;if(action==='metrics')$('metrics-details').open=true;const id={brief:'wf-topic',transcript:'wf-transcript',metrics:'wf-metrics'}[action];$(id).scrollIntoView({behavior:'smooth',block:'center'});$(id).focus();return;}
   const {run}=workflowSnapshot();const agent=run?.agents.find(a=>a.status===(action==='running'?'running':'failed'));
   if(agent)openAgent(agent.id);
@@ -55,18 +57,19 @@ async function enableNotifications(){
   }catch{help.textContent='通知を有効にできませんでした。画面内の通知をご利用ください。';}
 }
 function agentRows(run,filter=''){
-  return WORKFLOW_AGENTS.filter(a=>(a.name+a.description+a.group).includes(filter)).map(a=>{
-    const state=run?.agents.find(s=>s.id===a.id);return `<button class="task-row" data-open-agent="${a.id}"><span class="agent-avatar ${state?.status==='done'?'mint':'violet'}">${esc(a.group.slice(0,1))}</span><span><strong>${esc(a.name.replace('エージェント',''))}</strong><small>${esc(a.description)}</small></span><span class="pill ${state?.status==='done'?'mint':'lavender'}">${statusLabels[state?.status||'queued']}</span></button>`;
+  return findTasks(filter,WORKFLOW_AGENTS).map(a=>{
+    const state=run?.agents.find(s=>s.id===a.id);return `<div class="task-action-row"><button class="task-row" data-open-agent="${a.id}"><span class="agent-avatar ${state?.status==='done'?'mint':'violet'}">${esc(a.group.slice(0,1))}</span><span><strong>${esc(a.name.replace('エージェント',''))}</strong><small>${esc(a.description)}</small></span><span class="pill ${state?.status==='done'?'mint':'lavender'}">${statusLabels[state?.status||'queued']}</span></button><button class="button secondary" data-run-task="${a.id}" ${workflowSnapshot().busy||state?.status==='done'?'disabled':''}>ここまで進める</button></div>`;
   }).join('')||'<p class="empty-text">一致する工程はありません。</p>';
 }
 function renderSection(){
   const {run,input}=workflowSnapshot(),items=attentionItems(run),content=$('section-content');
   if(section==='team')content.innerHTML=`<h2>記事の制作工程</h2><p class="card-note">事実・表記・構成は並行して照合。企画から順に進み、取材資料や原稿の確認が必要になったらお知らせします。</p><div class="task-list">${agentRows(run,query)}</div>`;
-  if(section==='tasks')content.innerHTML=`<h2>今、対応すること</h2><p class="card-note">制作の状態に応じて更新される、編集者のタスクです。</p>${items.length?items.map(i=>`<button class="task-row" data-action-open="${i.action}"><span class="agent-avatar pink">!</span><span><strong>${esc(i.title)}</strong><small>${esc(i.description)}</small></span><span>›</span></button>`).join(''):'<p class="empty-text">対応待ちの項目はありません。企画・取材資料から新しい企画を始められます。</p>'}<h3>工程を探す</h3><div class="task-list">${agentRows(run,query)}</div>`;
+  if(section==='tasks')content.innerHTML=`<h2>今、対応すること</h2><p class="card-note">制作の状態に応じて更新される、編集者のタスクです。</p><label class="task-search-label">進めたい作業を探す<input id="task-search" type="search" maxlength="200" value="${esc(query)}" placeholder="例：質問を作って、SNSの投稿案、記事の制作を始める"></label><div id="task-search-results">${taskResults(run,items)}</div>`;
   if(section==='calendar')content.innerHTML=`<h2>公開予定</h2><p class="card-note">予定はこのページで管理します。公開やSNS投稿は自動実行しません。</p><label>公開予定日<input type="date" id="calendar-deadline" value="${esc(deadline)}"></label><div class="calendar-entry"><span class="pill lavender">${deadline?esc(deadline):'日付未設定'}</span><h3>${esc(input.topic||'新しい記事')}</h3><p>${esc(phaseLabels[run?.status]||'準備中')}</p><button class="button secondary" data-open="brief">企画・取材資料を開く</button></div>`;
   if(section==='knowledge')renderKnowledge(content,{busy:workflowSnapshot().busy,topic:input.topic,afterRender:()=>content.insertAdjacentHTML('beforeend',`<label class="knowledge-note-label">編集部のメモ<textarea id="knowledge-note" maxlength="10000" placeholder="媒体の知見、確認したいこと、次の記事へのメモ">${esc(notes)}</textarea></label><p class="card-note">このメモは外部へ送信しません。閉じる前に必要な内容をコピーして保存してください。</p>`)});
   if(section==='templates')content.innerHTML='<h2>記事の目的から始める</h2><p class="card-note">テーマや資料を上書きせず、未入力の読者・目的を補います。</p><div class="template-grid">'+[{id:'interview',title:'インタビュー記事',text:'発言の意図・条件を保ち、読者に知見を届ける。'},{id:'business',title:'業務改善の記事',text:'課題・取り組み・検証できる成果を整理する。'},{id:'owned',title:'オウンドメディア',text:'読者の悩みに答え、次の行動につなげる。'}].map(t=>`<button class="template-card" data-template="${t.id}"><span class="pill lavender">企画・取材資料</span><h3>${t.title}</h3><p>${t.text}</p><strong>この型で準備する →</strong></button>`).join('')+'</div>';
 }
+function taskResults(run,items){return `${!query||isProductionRequest(query)?`<div class="task-production-action"><strong>企画から記事の制作を進める</strong><p>資料を引き継いで順番に進めます。取材内容や確認が必要な場合はお知らせします。</p><button class="button primary" data-run-task="all" ${workflowSnapshot().busy?'disabled':''}>記事の制作を始める</button></div>`:''}${items.length?items.map(i=>`<button class="task-row" data-action-open="${i.action}"><span class="agent-avatar pink">!</span><span><strong>${esc(i.title)}</strong><small>${esc(i.description)}</small></span><span>›</span></button>`).join(''):''}<h3>作業を選んで進める</h3><p class="card-note">「ここまで進める」で、必要な前工程を含めて実行します。完了済みの作業は引き継ぎます。公開・送信は人が行います。</p><div class="task-list">${agentRows(run,query)}</div>`;}
 function render(){
   const {run,input}=workflowSnapshot();const agents=run?.agents||[],done=agents.filter(a=>a.status==='done').length,running=agents.filter(a=>a.status==='running').length;
   const phase=phaseLabels[run?.status]||'準備中',items=attentionItems(run),settings=aiSettings();
@@ -105,6 +108,7 @@ export function initDashboard(){
   $('nav-editor').addEventListener('click',()=>navigate('editor'));
   $('load-sample').addEventListener('click',()=>navigate('editor'));$('sample-nav').addEventListener('click',()=>navigate('editor'));
   document.addEventListener('click',e=>{
+    const task=e.target.closest('[data-run-task]');if(task&&!task.disabled){void executeTask(task.dataset.runTask);return;}
     const agent=e.target.closest('[data-open-agent]');if(agent)openAgent(agent.dataset.openAgent);
     const sec=e.target.closest('[data-section]');if(sec)navigate(sec.dataset.section);
     const action=e.target.closest('[data-action-open]');if(action)openAction(action.dataset.actionOpen);
@@ -117,6 +121,7 @@ export function initDashboard(){
   $('project-deadline').addEventListener('input',e=>{deadline=e.target.value;});
   $('section-content').addEventListener('input',e=>{if(e.target.id==='knowledge-note')notes=e.target.value;if(e.target.id==='calendar-deadline'){deadline=e.target.value;$('project-deadline').value=deadline;}});
   $('dashboard-search').addEventListener('input',e=>{query=e.target.value;navigate('tasks');});
+  $('section-content').addEventListener('input',e=>{if(e.target.id==='task-search'){query=e.target.value;$('dashboard-search').value=query;$('task-search-results').innerHTML=taskResults(workflowSnapshot().run,attentionItems(workflowSnapshot().run));}});
   $('notification-bell').addEventListener('click',()=>{$('notification-dialog').showModal();});
   $('notification-list').addEventListener('click',e=>{const b=e.target.closest('[data-notice]');if(!b)return;const item=notifications[Number(b.dataset.notice)];center.read(item.key);$('notification-dialog').close();if(item.active)openAction(item.action);else navigate('dashboard');});
   $('enable-notifications').addEventListener('click',()=>{if(desktopEnabled){desktopEnabled=false;for(const n of notificationsOpen)n.close();$('enable-notifications').textContent='ブラウザ通知を有効にする';$('notification-help').textContent='ブラウザ通知を停止しました。画面内の通知をご利用ください。';}else void enableNotifications();});

@@ -23,7 +23,7 @@ export function createVercelHandler(worker) {
     const url = new URL(request.url);
     if (!allowedOrigins(env).includes(url.origin)) return json({ error: 'deployment_origin_not_configured' }, 503);
     if (!['GET', 'HEAD'].includes(request.method) && (request.headers.get('Origin') !== url.origin || request.headers.get('Sec-Fetch-Site') === 'cross-site')) return json({ error: 'origin_denied' }, 403);
-    if (url.pathname === '/api/agents' && request.headers.has('X-OpenRouter-Key')) return json({ error: 'client_key_not_allowed' }, 400);
+    if (['/api/agents','/api/connection'].includes(url.pathname) && request.headers.has('X-OpenRouter-Key')) return json({ error: 'client_key_not_allowed' }, 400);
     const headers = new Headers(request.headers);
     // The Worker is shared with private Sites deployments. This adapter intentionally
     // grants public access and replaces all caller identity headers. No identity is authenticated.

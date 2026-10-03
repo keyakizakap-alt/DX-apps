@@ -11,7 +11,7 @@ test('app opens without password or cookie even before operator sets API key',as
   const handle=setup();const response=await handle(new Request(origin),{SITE_ORIGIN:origin});
   assert.equal(response.status,200);assert.equal(await response.text(),'<p>public app</p>');assert.equal(response.headers.has('Set-Cookie'),false);
   assert.equal((await handle(new Request(origin+'/app.js'),{SITE_ORIGIN:origin})).status,200);
-  const status=await handle(new Request(origin+'/api/status'),{SITE_ORIGIN:origin});assert.deepEqual(await status.json(),{configured:false,provider:'OpenRouter',serverPolicy:'zdr-no-training',authentication:'none',serverKeyOnly:true});
+  const status=await handle(new Request(origin+'/api/status'),{SITE_ORIGIN:origin});assert.deepEqual(await status.json(),{configured:false,provider:'OpenRouter',serverPolicy:'zdr-no-training',connection:'missing_key',defaultModel:'openai/gpt-4.1-mini',authentication:'none',serverKeyOnly:true});
 });
 test('server status exposes only readiness, never the operator secret',async()=>{
   const response=await setup()(new Request(origin+'/api/status'),env);const data=await response.json();assert.equal(data.configured,true);assert.equal(JSON.stringify(data).includes(env.OPENROUTER_API_KEY),false);assert.equal(response.headers.get('Cache-Control'),'no-store');

@@ -4,6 +4,7 @@ export function nextAction(run) {
   if(['awaiting_metrics','completed'].includes(run.status)&&!run.approvals.publication)return {kind:'publication',title:'公開前の確認をお願いします',reason:'原稿・タイトル・投稿案・画像の権利を確認してください。確認後、入稿用ファイルを保存できます。',label:'公開前の確認へ →'};
   const map={
     running:['running','記事を作成しています','完了した成果物を確認できます。必要ならいつでも実行を停止できます。','作業中の工程を見る →'],
+    task_completed:['continue','選択した作業が完了しました','成果物を確認して、次の制作工程を進められます。','制作の続きを開く →'],
     awaiting_transcript:['transcript','取材の文字起こしを追加','企画と取材準備が完了しました。実際の取材内容を追加すると、執筆以降を再開できます。','取材資料を追加 →'],
     awaiting_review:['risk','原稿と根拠を確認','確認候補または検証できない根拠があるため停止しました。判断理由を記録すると再開します。','確認・承認画面へ →'],
     awaiting_metrics:['metrics','公開準備を確認し、実績を追加','入稿用データを人が承認してください。公開後の実績を追加すると振り返りが進みます。','公開後の実績を追加 →'],

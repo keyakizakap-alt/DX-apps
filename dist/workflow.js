@@ -1,5 +1,6 @@
 import { SAMPLE } from './engine.js';
-import { aiConfigured,aiSettings,protectedInput } from './provider.js';
+import { aiConfigured,aiSettings,protectedInput,discoverServer,connectionMessage } from './provider.js';
+import {taskPlan} from './tasks.js';
 import { redactText,audit,verifyAudit } from './security.js';
 import { WORKFLOW_AGENTS,createRun,agentState,runWorkflow,exportRun,approveRisk,approvePublication,publicationApproved } from './agents.js';
 import {productionProgress} from './progress.js';
@@ -8,10 +9,11 @@ import {readableArtifact,downloadText} from './transfers.js';
 import {selectedKnowledge} from './knowledge-ui.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let run=null,controller=null,selected='research',busy=false,openReview=()=>{},approvalMode='risk';
+let run=null,controller=null,selected='research',busy=false,starting=false,pendingTarget=null,openReview=()=>{},approvalMode='risk';
 const statusLabel={queued:'待機',running:'実行中',done:'完了',failed:'失敗',awaiting:'入力待ち',cancelled:'停止'};
 const inputIDs=['topic','audience','goal','media','length','sources','rules','transcript','metrics','web-search'];
-export function workflowSnapshot(){return {run,busy,input:readInput()};}
+export function workflowSnapshot(){return {run,busy:busy||starting,input:readInput()};}
+export async function executeTask(target='all'){taskPlan(target);showWorkflow();if(target!=='all')selected=target;await start(target);}
 export function openAgent(id){if(WORKFLOW_AGENTS.some(a=>a.id===id)){selected=id;showWorkflow();render();$('artifact-content').scrollIntoView({behavior:'smooth',block:'center'});}}
 export function showWorkflow(){
   window.dispatchEvent(new CustomEvent('workspace:navigate',{detail:'workflow'}));
@@ -31,11 +33,19 @@ function sample(){
   run=null;selected='research';render();status('架空のブリーフと取材資料を読み込みました。AIを使う前に、資料の取り扱いを確認してください。');$('brief-details').open=true;$('materials-details').open=true;
 }
 function coreSignature(input){const {transcript,metrics,...core}=input;return JSON.stringify(core);}
-async function start(){
-  if(busy)return;
+async function start(target='all'){
+  if(busy||starting)return;
+  starting=true;try{await startProduction(target);}catch(e){status(e.message||'作業を開始できませんでした。',true);}finally{starting=false;render();}
+}
+async function startProduction(target){
+  taskPlan(target);
   if(run?.status==='budget_exceeded'){status(run.error,true);return;}
-  if(!aiConfigured()){if(!aiSettings().serverReady){status('記事の自動作成を利用できません。原稿レビューの表記・数値チェックはご利用いただけます。');return;}status('資料の取り扱いを確認して、記事の制作を開始してください。');$('workflow-settings').click();return;}
-  let input;try{input=protectedInput(readInput());}catch(e){status(e.message,true);return;}
+  const raw=readInput(),missing=[['topic','企画テーマ'],['audience','想定読者'],['goal','記事の目的']].filter(([key])=>!raw[key]);
+  if(missing.length){status(`${missing.map(([,label])=>label).join('・')}を入力してください。入力後、制作を開始できます。`);$('brief-details').open=true;$('wf-'+missing[0][0]).focus();return;}
+  status('制作の接続を確認しています。');render();await discoverServer();
+  if(!aiSettings().serverReady){status(connectionMessage());$('workflow-reconnect').hidden=false;return;}
+  if(!aiConfigured()||!aiSettings().consent){pendingTarget=target;status('資料の取り扱いを確認すると、選択した制作を開始します。');$('workflow-settings').click();return;}
+  let input;try{input=protectedInput(raw);}catch(e){status(e.message,true);return;}
   if(input.webSearch&&aiSettings().classification!=='public'){status('Web検索は公開情報のみで使えます。社内資料は検索に送信しません。',true);return;}
   if(!input.topic||!input.audience||!input.goal){status('企画テーマ・想定読者・記事の目的を入力してください。',true);$('brief-details').open=true;return;}
   if(!Number.isFinite(input.targetLength)||input.targetLength<300||input.targetLength>8000){status('文字数目安は300〜8,000文字で指定してください。',true);return;}
@@ -52,8 +62,9 @@ async function start(){
   else{run.input.transcript=input.transcript;run.input.metrics=input.metrics;}
   controller=new AbortController();busy=true;status('記事の制作を開始しています。完了した工程から成果物を確認できます。');$('brief-details').open=false;render();
   try{
-    await runWorkflow(run,{signal:controller.signal,onUpdate:()=>render()});
-    if(run.status==='awaiting_transcript'){status('企画と取材準備が完了しました。取材後に文字起こしを入力して再開してください。');$('brief-details').open=true;$('materials-details').open=true;}
+    await runWorkflow(run,{signal:controller.signal,onUpdate:()=>render(),target});
+    if(run.status==='task_completed'){selected=target;status('選択した作業が完了しました。成果物を確認できます。次の工程は「制作の続きを進める」から開始できます。');}
+    else if(run.status==='awaiting_transcript'){status('企画と取材準備が完了しました。取材後に文字起こしを入力して再開してください。');$('brief-details').open=true;$('materials-details').open=true;}
     else if(run.status==='awaiting_metrics')status('制作と公開準備が完了しました。修正稿を確認し、公開後の実績を入力すると振り返りを実行できます。');
     else if(run.status==='completed')status('記事の制作が完了しました。修正稿・公開準備・振り返りの成果物を確認してください。');
     else if(run.status==='awaiting_review'){selected=run.reviewScope==='public'?'social':'final_check';status('資料で確認が必要な箇所が見つかりました。編集担当者が内容を確認し、判断理由を記録すると再開できます。');}
@@ -72,13 +83,15 @@ function render(){
   $('project-progress-percent').textContent=progress.percent+'%';
   $('project-progress-bar').value=progress.completed;
   $('project-stages').innerHTML=progress.stages.map((stage,index)=>`<button class="project-stage ${stage.state}" data-progress-agent="${stage.firstAgent}"><span class="project-stage-index">${stage.state==='done'?'✓':index+1}</span><strong>${esc(stage.group)}</strong><span class="project-stage-label">${esc(stage.label)}</span><progress value="${stage.done}" max="${stage.total}" aria-label="${esc(stage.group)}の進み具合"></progress><small>${stage.done} / ${stage.total} 作業</small></button>`).join('');
-  $('workflow-phase').textContent=busy?'実行中':({awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止',budget_exceeded:'処理上限'}[run?.status]||'待機中');
-  $('workflow-run').disabled=busy||run?.status==='budget_exceeded';
+  $('workflow-phase').textContent=busy?'実行中':starting?'接続確認中':({task_completed:'作業完了',awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止',budget_exceeded:'処理上限'}[run?.status]||'待機中');
+  $('workflow-run').disabled=busy||starting||run?.status==='budget_exceeded';
   $('workflow-run').textContent=run&&!['ready','completed'].includes(run.status)?'続きから再開':run?.status==='completed'?'新しい制作を開始':'記事の制作を始める';
   if(run?.status==='completed')$('workflow-run').textContent='完了した成果物を確認';
+  if(run?.status==='task_completed')$('workflow-run').textContent='制作の続きを進める';
   $('workflow-stop').hidden=!busy;$('workflow-sample').disabled=busy;
-  inputIDs.forEach(id=>$('wf-'+id).disabled=busy);
-  $('workflow-connection').textContent=aiConfigured()?'資料の取り扱いを確認済み':'資料の取り扱いを確認してください';
+  inputIDs.forEach(id=>$('wf-'+id).disabled=busy||starting);
+  $('workflow-connection').textContent=aiSettings().serverReady?(aiConfigured()?'資料の取り扱いを確認済み':'資料の取り扱いを確認してください'):'制作の接続を確認してください';
+  $('workflow-reconnect').disabled=busy||starting;
   $('workflow-action-hint').textContent=run?.status==='awaiting_transcript'?'文字起こしを追加して、執筆以降を再開できます。':run?.status==='awaiting_metrics'?'公開後の実績は企画・取材資料から追加できます。':'取材がまだでも、企画と取材準備から始められます。';
   let html='';
   for(const group of [...new Set(WORKFLOW_AGENTS.map(a=>a.group))]){
@@ -105,6 +118,7 @@ function renderArtifact(){
   $('artifact-title').textContent=agent.name.replace('エージェント','');
   $('artifact-subtitle').textContent=agent.description;
   $('artifact-download').disabled=!item?.output;$('artifact-copy').disabled=!item?.output;
+  $('artifact-run').disabled=busy||starting||item?.status==='done'||run?.status==='budget_exceeded';$('artifact-run').textContent=item?.status==='done'?'この作業は完了しています':'この作業まで進める';
   if(!item?.output){
     $('artifact-content').innerHTML=`<div class="artifact-empty"><span class="artifact-empty-icon" aria-hidden="true">▤</span><h3>${item?.status==='awaiting'?'必要な資料を待っています':item?.status==='running'?'内容を作成しています':item?.status==='failed'?'この工程で停止しました':'ここに作成した内容が表示されます'}</h3><p>${esc(item?.error||agent.description)}</p><p>${item?.status==='failed'?'完了済みの工程をやり直さず、続きから再開できます。':'企画・取材資料を入力して、記事の制作を始めてください。'}</p></div>`;return;
   }
@@ -131,11 +145,13 @@ function download(content,type,name){const url=URL.createObjectURL(new Blob([con
 function selectedArtifact(){const out=run&&agentState(run,selected).output;if(selected==='archive'&&out){const article=agentState(run,'rewrite').output||agentState(run,'writing').output;return {...out,title:article?.title||run.input.topic,content:article?.article||''};}return out;}
 export function initWorkflow(options={}){
   openReview=options.openReview||(()=>{});
-  $('workflow-run').addEventListener('click',start);
+  $('workflow-run').addEventListener('click',()=>void start());
+  $('artifact-run').addEventListener('click',()=>void executeTask(selected));
+  $('workflow-reconnect').addEventListener('click',async()=>{if(busy||starting)return;starting=true;render();status('制作の接続を確認しています。');try{await discoverServer({verify:true});status(connectionMessage());}finally{starting=false;render();}});
   $('workflow-stop').addEventListener('click',()=>controller?.abort());
   $('workflow-preview').addEventListener('click',()=>{const settings=aiSettings(),input=readInput(),labels={topic:'企画テーマ',audience:'想定読者',goal:'記事の目的',media:'掲載媒体',targetLength:'文字数の目安',sources:'調査資料',rules:'編集ルール',transcript:'文字起こし',metrics:'公開後の実績'};let text=Object.entries(labels).map(([key,label])=>label+'\n'+(input[key]||'未入力')).join('\n\n');if(input.editorialContext)text+='\n\n参考記事（今回の事実根拠には使いません）\n'+input.editorialContext.references.map(r=>[r.title,r.date,r.url,[...r.industry,...r.themes].join(' / '),r.excerpt].join('\n')).join('\n\n')+'\n\n分類の名称\n'+input.editorialContext.categoryNames.join(' / ');$('privacy-preview').textContent=settings.redact?redactText(text,settings.terms):text;$('privacy-dialog').showModal();});
   $('workflow-clear').addEventListener('click',()=>{
-    if(busy){status('実行を停止してから資料を消去してください。',true);return;}
+    if(busy||starting){status('実行を停止してから資料を消去してください。',true);return;}
     if(!confirm('入力資料・成果物・資料の取り扱い設定を消去しますか？必要な記録は先に保存してください。'))return;
     run=null;approvalMode='risk';inputIDs.filter(id=>!['media','length','web-search'].includes(id)).forEach(id=>$('wf-'+id).value='');$('privacy-preview').textContent='';$('approval-reason').value='';window.dispatchEvent(new Event('data:clear'));render();status('入力と成果物を消去しました。保存済みのファイルはお手元で管理してください。');
   });
@@ -146,7 +162,7 @@ export function initWorkflow(options={}){
   $('workflow-approve-publication').addEventListener('click',()=>{approvalMode='publication';$('approval-panel').hidden=false;$('approval-title').textContent='公開用データの承認';$('approval-description').textContent='修正稿・根拠・タイトル・SNS文案・画像の権利と未確認事項を確認してください。承認は現在の成果物に紐づきます。実際の公開・投稿はまだ行いません。';$('approval-submit').textContent='公開用データを承認';$('approval-reason').value='';$('approval-panel').scrollIntoView({behavior:'smooth',block:'center'});});
   $('approval-submit').addEventListener('click',async()=>{
     if(!run||busy)return;
-    try{const reason=protectedInput($('approval-reason').value.trim());if(approvalMode==='risk'){await approveRisk(run,reason);$('approval-panel').hidden=true;await start();}else{await approvePublication(run,reason);approvalMode='risk';$('approval-panel').hidden=true;render();status('公開用データを承認しました。入稿用ファイルを保存できます。実際の公開は人が行ってください。');}}catch(e){status(e.message,true);}
+    try{const reason=protectedInput($('approval-reason').value.trim());if(approvalMode==='risk'){await approveRisk(run,reason);$('approval-panel').hidden=true;await start(run.requestedTask||'all');}else{await approvePublication(run,reason);approvalMode='risk';$('approval-panel').hidden=true;render();status('公開用データを承認しました。入稿用ファイルを保存できます。実際の公開は人が行ってください。');}}catch(e){status(e.message,true);}
   });
   $('artifact-copy').addEventListener('click',async()=>{const out=selectedArtifact();if(!out)return;try{await navigator.clipboard.writeText(readableArtifact(out));status('内容をコピーしました。');}catch{const range=document.createRange();range.selectNodeContents($('artifact-content'));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);status('内容を選択しました。Ctrl／⌘＋Cでコピーできます。');}});
   $('artifact-download').addEventListener('click',()=>{const out=selectedArtifact();if(out)downloadText(readableArtifact(out),`記事の${WORKFLOW_AGENTS.find(a=>a.id===selected).name.replace('エージェント','')}.txt`);});
@@ -155,6 +171,9 @@ export function initWorkflow(options={}){
   window.addEventListener('knowledge:changed',render);
   $('workflow-review').addEventListener('click',()=>{if(run)openReview(run);});
   window.addEventListener('ai:configured',render);
+  window.addEventListener('ai:configured',()=>{if(pendingTarget!==null&&aiConfigured()&&aiSettings().consent){const target=pendingTarget;pendingTarget=null;queueMicrotask(()=>void start(target));}});
+  $('settings-dialog').addEventListener('close',()=>{if(!aiSettings().consent)pendingTarget=null;});
+  window.addEventListener('data:clear',()=>pendingTarget=null);
   window.addEventListener('workflow:updated',()=>{approvalMode='risk';render();status('修正を反映しました。続きから再開し、原稿と公開用データをもう一度確認してください。');});
   window.addEventListener('beforeunload',e=>{if(run){e.preventDefault();e.returnValue='';}});
   render();

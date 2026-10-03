@@ -33,12 +33,12 @@ function showInput(confirmLoss = true) {
   $('workflow-view').hidden=true;$('steps-review').hidden=false;
   $('nav-workflow').classList.remove('active');$('nav-editor').classList.add('active');
 }
-function updateConnection() {
+function updateConnection(emit=true) {
   const connected = aiConfigured();
   $('connection-status').textContent = connected ? '記事の作成・校正を利用中' : '表記・数値チェック';
   $('mode-description').textContent = connected ? '引用・数値、表記、記事の構成をまとめて確認します。' : '表記・数値・引用を資料と照合します。';
   $('run-review').innerHTML = '<span aria-hidden="true">✦</span> ' + (connected ? '原稿を確認する' : 'レビューを開始');
-  window.dispatchEvent(new Event('ai:configured'));
+  if(emit)window.dispatchEvent(new Event('ai:configured'));
 }
 async function reviewWithAI(draft, transcript, rules) {
   $('review-team-status').hidden=false;
@@ -152,7 +152,7 @@ $('run-review').addEventListener('click',runReview);
 $('load-sample').addEventListener('click',()=>loadSample()); $('sample-nav').addEventListener('click',()=>loadSample());
 $('nav-editor').addEventListener('click',()=>showInput()); $('back-input').addEventListener('click',()=>showInput());
 ['settings-button','guide-settings','workflow-settings'].forEach(id=>$(id).addEventListener('click',()=>{ const settings=aiSettings();$('data-classification').value=settings.classification;$('redact-pii').checked=settings.redact;$('redact-terms').value=settings.terms;$('data-consent').checked=settings.consent; $('settings-dialog').showModal(); }));
-$('settings-form').addEventListener('submit',e=>{e.preventDefault();configureAI({...aiSettings(),classification:$('data-classification').value,redact:$('redact-pii').checked,terms:$('redact-terms').value,consent:$('data-consent').checked,enabled:$('data-consent').checked});updateConnection();$('settings-dialog').close();notify(aiConfigured()?'資料の取り扱いを適用しました。送信禁止の資料はAIに送りません。':'基本チェックで利用します。');});
+$('settings-form').addEventListener('submit',e=>{e.preventDefault();configureAI({...aiSettings(),classification:$('data-classification').value,redact:$('redact-pii').checked,terms:$('redact-terms').value,consent:$('data-consent').checked,enabled:$('data-consent').checked});updateConnection();$('settings-dialog').close();notify(aiConfigured()?'資料の取り扱いを適用しました。送信禁止の資料はAIに送りません。':aiSettings().consent?'資料の取り扱いを保存しました。制作の接続準備が完了すると利用できます。':'資料を外部へ送信できることを確認してから、制作を開始してください。');});
 $('disconnect').addEventListener('click',()=>{configureAI({...aiSettings(),enabled:false,consent:false});updateConnection();$('settings-dialog').close();notify('このページからのAIへの送信を停止しました。基本チェックを利用できます。');});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
 $('export-dialog').addEventListener('close',()=>setStep('review'));
@@ -178,6 +178,7 @@ initWorkflow({openReview:run=>{
 $('nav-workflow').addEventListener('click',()=>{if(state.busy)return;clearInterval(timer);hideNotice();showWorkflow();});
 initDashboard();
 initTransfers();
+window.addEventListener('ai:configured',()=>updateConnection(false));
 discoverServer();
 window.addEventListener('data:clear',()=>{clearInterval(timer);state={...state,findings:[],original:'',title:'',transcript:'',rules:'',isSample:false,workflowRun:null};['draft','transcript','rules','article-title','export-text','redact-terms'].forEach(id=>$(id).value='');$('article-content').textContent='';$('findings-list').textContent='';configureAI({...aiSettings(),enabled:false,consent:false,terms:''});updateInputs();updateConnection();});
 

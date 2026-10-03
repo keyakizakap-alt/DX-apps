@@ -2,6 +2,7 @@ import { callAgent,modelFor } from './provider.js';
 import { segments,validateAIFindings } from './engine.js';
 import { audit,digest } from './security.js';
 import {EDITORIAL_PROTOCOL,editorialChecks,validateCategories} from './editorial.js';
+import {taskPlan} from './tasks.js';
 const str={type:'string'};
 const arr=items=>({type:'array',items,maxItems:40});
 const obj=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
@@ -101,7 +102,9 @@ export function makeWordPressHTML(title,article) {
   const escape=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   return `<!-- WordPress下書き用。公開前に編集者が最終確認してください。 -->\n<h1>${escape(title)}</h1>\n`+article.split(/\n\s*\n/).filter(Boolean).map(p=>`<p>${escape(p).replace(/\n/g,'<br>')}</p>`).join('\n');
 }
-export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
+export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all'}={}) {
+  taskPlan(target);run.requestedTask=target;
+  const reached=group=>{if(target==='all'||!group.includes(target))return false;run.status='task_completed';onUpdate(run);return true;};
   const context=()=>{
     const draft=agentState(run,'rewrite').output?.article||agentState(run,'writing').output?.article||run.input.draft||'';
     const rules=[run.input.rules,`読者：${run.input.audience}`,`目的：${run.input.goal}`].filter(Boolean).join('\n');
@@ -160,14 +163,20 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
   };
   run.status='running';onUpdate(run);
   try{
-    await stage('research');await stage('planning');await group(['coordination','interview']);
+    await stage('research');if(reached(['research']))return run;
+    await stage('planning');if(reached(['planning']))return run;
+    await group(['coordination','interview']);if(reached(['coordination','interview']))return run;
     if(!run.input.transcript.trim()){
       agentState(run,'transcript').status='awaiting';run.status='awaiting_transcript';onUpdate(run);return run;
     }
-    await stage('transcript');await stage('writing');await group(['facts','style','structure']);
+    await stage('transcript');if(reached(['transcript']))return run;
+    await stage('writing');if(reached(['writing']))return run;
+    await group(['facts','style','structure']);
     const merged=mergeReviewResults(['facts','style','structure'].map(id=>({id,result:agentState(run,id).validated||{findings:[],rejected:0}})));
     run.reviewFindings=merged.findings;
-    await stage('rewrite');await stage('final_check');
+    if(reached(['facts','style','structure']))return run;
+    await stage('rewrite');if(reached(['rewrite']))return run;
+    await stage('final_check');
     const revision=agentState(run,'rewrite').output;
     run.editorialChecks=editorialChecks(revision.article,run.input.sources,run.input.transcript);
     const risky=run.rejected>0||(run.finalFindings||[]).length>0||run.editorialChecks.length>0||/［要確認|\[要確認/.test(revision.article);
@@ -176,13 +185,17 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
       run.reviewScope='draft';if(run.interventionHash!==riskHash){run.interventionHash=riskHash;run.interventionVersion=(run.interventionVersion||0)+1;}
       run.status='awaiting_review';await audit(run,'supervisor_required',{rejected:run.rejected,findings:run.finalFindings?.length||0,artifactHash:riskHash});onUpdate(run);return run;
     }
-    await group(['titles','visuals']);await group(['publishing','social']);
+    if(reached(['final_check']))return run;
+    await group(['titles','visuals']);
+    if(!['titles','visuals'].includes(target))await group(['publishing','social']);
     const publicText=[...(agentState(run,'titles').output?.titles||[]),...(agentState(run,'social').output?.posts||[]).map(p=>p.text)].join('\n');
     const publicChecks=editorialChecks(publicText,run.input.sources,run.input.transcript);
     run.editorialChecks=[...run.editorialChecks,...publicChecks.map(c=>({...c,title:'タイトル・SNS：'+c.title}))];
     const publicHash=await riskDigest(run);
     if(publicChecks.length&&run.approvals.publicRisk?.hash!==publicHash){run.reviewScope='public';if(run.interventionHash!==publicHash){run.interventionHash=publicHash;run.interventionVersion=(run.interventionVersion||0)+1;}run.status='awaiting_review';await audit(run,'supervisor_required',{publicChecks:publicChecks.length,artifactHash:publicHash});onUpdate(run);return run;}
+    if(reached(['titles','visuals','publishing','social']))return run;
     await stage('archive');
+    if(reached(['archive']))return run;
     if(!run.input.metrics.trim()){
       agentState(run,'analytics').status='awaiting';run.status='awaiting_metrics';onUpdate(run);return run;
     }
