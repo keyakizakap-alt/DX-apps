@@ -33,3 +33,12 @@ Configure `OPENROUTER_API_KEY` as a hosting secret, not as a source file. No Ver
 ## Required verification before changes
 
 Run security and agent-state regression tests. Check anonymous/cross-origin rejection, source bounds, restricted-data denial, masking, abort/retry, model allowlist, HTML escaping, approval invalidation, and secret absence from the built client. Do not weaken routing controls to make an unsupported provider appear to work.
+
+
+### 通知・新しいワークスペース機能
+
+- ブラウザ通知は明示的な操作と権限許可の後に有効化します。OSへの通知本文は固定の確認依頼文のみ。原稿、個人名、資料、モデル出力、認証情報を含めません。
+- 通知・予定日・編集メモ・検索文字列はページ内メモリのみ。外部通知サービスには接続せず、編集メモや予定日をAIに送信しません。消去操作でメモと通知記録を削除し、アプリが保持するブラウザ通知を閉じます。
+- 通知クリックや制作ナビは確認画面へ案内するだけで、承認や実行を代行しません。機密区分・送信同意・原稿改訂時の承認失効・公開用データの承認要件を保持します。
+- 48回の制作上限はクライアント側のループ制御です。悪意あるクライアントによるAPI直接呼び出しの課金制限ではありません。通知停止はAI送信の停止ではありません。
+- 自動保存やサーバー上の制作キューを設けていないため、ページを閉じた後の通知・実行はできません。バックグラウンド通知を追加する際は、宛先の所有確認、アクセス制御、秘密情報の保管、保持期間、重複送信防止を別途設計する必要があります。

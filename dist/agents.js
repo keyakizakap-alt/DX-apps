@@ -62,8 +62,9 @@ export async function runReviewTeam({draft,transcript,rules,signal,onStatus=()=>
   return {...mergeReviewResults(succeeded),failures,usage:succeeded.map(r=>r.usage)};
 }
 
+export const MAX_WORKFLOW_CALLS=48;
 export function createRun(input) {
-  return {version:2,id:`run-${Date.now()}`,input:{...input},createdAt:new Date().toISOString(),status:'ready',agents:WORKFLOW_AGENTS.map(a=>({id:a.id,status:'queued',output:null,error:'',durationMs:0,usage:null,annotations:[]})),reviewFindings:[],rejected:0,audit:[],approvals:{},attempts:0,usageRecords:[]};
+  return {version:3,revision:0,id:`run-${Date.now()}`,input:{...input},createdAt:new Date().toISOString(),status:'ready',agents:WORKFLOW_AGENTS.map(a=>({id:a.id,status:'queued',output:null,error:'',durationMs:0,usage:null,annotations:[]})),reviewFindings:[],rejected:0,audit:[],approvals:{},attempts:0,usageRecords:[]};
 }
 export function agentState(run,id){return run.agents.find(a=>a.id===id);}
 export function exportRun(run){return JSON.parse(JSON.stringify(run));}
@@ -81,7 +82,7 @@ export async function publicationApproved(run){return !!run.approvals.publicatio
 export async function applyEditorialRevision(run,article){
   const rewrite=agentState(run,'rewrite');
   if(!rewrite.output||rewrite.output.article===article)return;
-  rewrite.output={...rewrite.output,article};run.approvals={};run.finalFindings=[];run.status='ready';
+  rewrite.output={...rewrite.output,article};run.revision=(run.revision||0)+1;run.approvals={};run.finalFindings=[];run.status='ready';
   // Old final-check rejections belong to the previous article revision.
   run.rejected=['facts','style','structure'].reduce((sum,id)=>sum+(agentState(run,id).validated?.rejected||0),0);
   for(const id of ['final_check','titles','visuals','publishing','social','archive','analytics']){
@@ -113,6 +114,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
       }else{
         let payload=context();
         if(id==='research')payload={topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,sourceMaterial:segments(run.input.sources,'S'),webSearchEnabled:run.input.webSearch};
+        if(run.attempts>=MAX_WORKFLOW_CALLS){const error=new Error('この制作のAI処理は48回を上限に停止しました。成果物を保存し、制作の範囲を見直してください。');error.name='ExecutionLimitError';throw error;}
         run.attempts++;const response=await callAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:['writing','rewrite'].includes(id)?8000:4000});
         run.usageRecords.push({agent:id,time:new Date().toISOString(),...response.usage});
         state.output=response.output;state.annotations=response.annotations;state.usage=response.usage;
@@ -165,5 +167,5 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
       agentState(run,'analytics').status='awaiting';run.status='awaiting_metrics';onUpdate(run);return run;
     }
     await stage('analytics');run.status='completed';onUpdate(run);return run;
-  }catch(e){run.status=e.name==='AbortError'?'cancelled':'failed';run.error=e.message;onUpdate(run);return run;}
+  }catch(e){run.status=e.name==='AbortError'?'cancelled':e.name==='ExecutionLimitError'?'budget_exceeded':'failed';run.error=e.message;onUpdate(run);return run;}
 }

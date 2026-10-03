@@ -7,7 +7,10 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 let run=null,controller=null,selected='research',busy=false,openReview=()=>{},approvalMode='risk';
 const statusLabel={queued:'待機',running:'実行中',done:'完了',failed:'失敗',awaiting:'入力待ち',cancelled:'停止'};
 const inputIDs=['topic','audience','goal','media','length','sources','rules','transcript','metrics','web-search'];
+export function workflowSnapshot(){return {run,busy,input:readInput()};}
+export function openAgent(id){if(WORKFLOW_AGENTS.some(a=>a.id===id)){selected=id;showWorkflow();render();$('artifact-content').scrollIntoView({behavior:'smooth',block:'center'});}}
 export function showWorkflow(){
+  window.dispatchEvent(new CustomEvent('workspace:navigate',{detail:'workflow'}));
   $('workflow-view').hidden=false;$('input-view').hidden=true;$('result-view').hidden=true;$('steps-review').hidden=true;
   $('nav-workflow').classList.add('active');$('nav-editor').classList.remove('active');
 }
@@ -26,6 +29,7 @@ function sample(){
 function coreSignature(input){const {transcript,metrics,...core}=input;return JSON.stringify(core);}
 async function start(){
   if(busy)return;
+  if(run?.status==='budget_exceeded'){status(run.error,true);return;}
   if(!aiConfigured()){if(!aiSettings().serverReady){status('AI制作は準備中です。原稿レビューの基本チェックをご利用ください。');return;}status('資料の取り扱いを確認して、専門チームを実行してください。');$('workflow-settings').click();return;}
   let input;try{input=protectedInput(readInput());}catch(e){status(e.message,true);return;}
   if(input.webSearch&&aiSettings().classification!=='public'){status('Web検索は公開情報のみで使えます。社内資料は検索に送信しません。',true);return;}
@@ -57,8 +61,8 @@ function render(){
   const completed=agents.filter(a=>a.status==='done').length;
   $('wf-completed').textContent=`${completed} / ${WORKFLOW_AGENTS.length}`;
   $('wf-calls').textContent=run?.attempts||0;
-  $('workflow-phase').textContent=busy?'実行中':({awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止'}[run?.status]||'待機中');
-  $('workflow-run').disabled=busy;
+  $('workflow-phase').textContent=busy?'実行中':({awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止',budget_exceeded:'処理上限'}[run?.status]||'待機中');
+  $('workflow-run').disabled=busy||run?.status==='budget_exceeded';
   $('workflow-run').textContent=run&&!['ready','completed'].includes(run.status)?'続きから再開':run?.status==='completed'?'新しい制作を開始':'専門チームで制作を開始';
   if(run?.status==='completed')$('workflow-run').textContent='完了した成果物を確認';
   $('workflow-stop').hidden=!busy;$('workflow-sample').disabled=busy;
@@ -81,6 +85,7 @@ function render(){
   }
   $('workflow-review').disabled=agentState(run||{agents:[]},'final_check')?.status!=='done';
   renderArtifact();
+  window.dispatchEvent(new Event('production:updated'));
 }
 function renderArtifact(){
   const agent=WORKFLOW_AGENTS.find(a=>a.id===selected),item=run&&agentState(run,selected);

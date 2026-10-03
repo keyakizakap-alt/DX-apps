@@ -2,6 +2,7 @@ import { SAMPLE, localReview, segments, validateAIFindings, revisedDraft, accept
 import { configureAI,aiConfigured,aiSettings,protectedInput,discoverServer } from './provider.js';
 import { runReviewTeam,applyEditorialRevision } from './agents.js';
 import { initWorkflow,showWorkflow } from './workflow.js';
+import { initDashboard } from './dashboard.js';
 const $ = id => document.getElementById(id);
 let state = { findings: [], original: '', title: '', transcript: '', rules: '', selected: '', revised: false, started: 0, isSample: true, mode: 'basic', busy: false };
 let timer;
@@ -26,6 +27,7 @@ function loadSample(force = false) {
 function showInput(confirmLoss = true) {
   if(state.busy)return;
   if (confirmLoss && state.findings.some(f => f.status === 'accepted') && !confirm('採用済みの修正は「修正稿を書き出す」で保存できます。入力に戻りますか？')) return;
+  window.dispatchEvent(new CustomEvent('workspace:navigate',{detail:'editor'}));
   $('input-view').hidden = false; $('result-view').hidden = true; setStep('input'); clearInterval(timer); hideNotice();
   $('workflow-view').hidden=true;$('steps-review').hidden=false;
   $('nav-workflow').classList.remove('active');$('nav-editor').classList.add('active');
@@ -173,7 +175,7 @@ initWorkflow({openReview:run=>{
   showInput(false);updateInputs();$('input-view').hidden=true;$('result-view').hidden=false;setStep('review');render();clearInterval(timer);timer=setInterval(updateElapsed,1000);notify('専門チームが作成した修正稿です。最終照合の指摘を確認して、公開前に編集者が承認してください。');
 }});
 $('nav-workflow').addEventListener('click',()=>{if(state.busy)return;clearInterval(timer);hideNotice();showWorkflow();});
-showWorkflow();
+initDashboard();
 discoverServer();
 window.addEventListener('data:clear',()=>{clearInterval(timer);state={...state,findings:[],original:'',title:'',transcript:'',rules:'',isSample:false,workflowRun:null};['draft','transcript','rules','article-title','export-text','redact-terms'].forEach(id=>$(id).value='');$('article-content').textContent='';$('findings-list').textContent='';configureAI({...aiSettings(),enabled:false,consent:false,terms:''});updateInputs();updateConnection();});
 
