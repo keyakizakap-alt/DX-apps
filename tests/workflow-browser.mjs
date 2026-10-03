@@ -20,7 +20,6 @@ await page.goto('http://127.0.0.1:4173/');
 await page.locator('#workflow-sample').click();
 await page.screenshot({path:'/tmp/angle-workflow-input.png',fullPage:true});
 await page.locator('#workflow-settings').click();
-await page.locator('#api-key').fill('sk-or-v1-local-dummy');
 await page.locator('#data-classification').selectOption('restricted');
 await page.locator('#data-consent').check();
 await page.getByRole('button',{name:'設定を適用',exact:true}).click();

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {configureAI} from '../dist/provider.js';
+import {configureAI,discoverServer} from '../dist/provider.js';
 import {createRun,runWorkflow,agentState,approveRisk,approvePublication,publicationApproved,makeWordPressHTML,applyEditorialRevision} from '../dist/agents.js';
 import {verifyAudit} from '../dist/security.js';
 const input={topic:'業務改善',audience:'経営者',goal:'改善方法を伝える',media:'ビジネスメディア',targetLength:500,sources:'業務改善の取材。',rules:'取材にない断定をしない。',transcript:'一部が改善した。',metrics:'',webSearch:false};
@@ -20,7 +20,8 @@ function mock({risk=false,failOnce=''}={}){
     return Response.json({model:body.model,choices:[{finish_reason:'stop',message:{content:JSON.stringify(fixture(body.agent,risk))}}],usage:{prompt_tokens:10,completion_tokens:20,cost:0.001}});
   }};
 }
-configureAI({key:'sk-or-v1-local-dummy',model:'openai/gpt-4.1-mini',classification:'internal',redact:true,consent:true,enabled:true});
+const setupFetch=globalThis.fetch;globalThis.fetch=async()=>Response.json({configured:true});await discoverServer();globalThis.fetch=setupFetch;
+configureAI({model:'openai/gpt-4.1-mini',classification:'internal',redact:true,consent:true,enabled:true});
 test('full flow pauses for metrics, resumes without rerunning completed agents, and exports approved package',async()=>{
   const original=globalThis.fetch;const api=mock();globalThis.fetch=api.fetch;
   try{

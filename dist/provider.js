@@ -1,8 +1,7 @@
 import { protectData } from './security.js';
-const config = { key:'', model:'openai/gpt-4.1-mini', reviewModel:'', researchModel:'',classification:'internal',redact:true,terms:'',consent:false,enabled:true };
+const config = { model:'openai/gpt-4.1-mini', reviewModel:'', researchModel:'',classification:'internal',redact:true,terms:'',consent:false,enabled:false };
 let serverReady=false;
 export function configureAI(next) {
-  if(!next.preserveKey||String(next.key||'').trim())config.key = String(next.key || '').trim();
   for (const field of ['model','reviewModel','researchModel']) config[field] = String(next[field] || '').trim();
   if (!config.model) config.model = 'openai/gpt-4.1-mini';
   if(next.classification)config.classification=next.classification;
@@ -11,13 +10,13 @@ export function configureAI(next) {
   if(typeof next.terms==='string')config.terms=next.terms;
   if(typeof next.enabled==='boolean')config.enabled=next.enabled;
 }
-export function aiConfigured() { return config.enabled&&(!!config.key||serverReady); }
+export function aiConfigured() { return config.enabled&&serverReady; }
 export function aiSettings() { return { model:config.model,reviewModel:config.reviewModel,researchModel:config.researchModel,classification:config.classification,redact:config.redact,terms:config.terms,consent:config.consent,serverReady }; }
 export function protectedInput(input){return protectData(input,config);}
-export async function discoverServer(){try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok){const status=await r.json();serverReady=!!status.configured;const logout=globalThis.document?.getElementById('logout-form');if(logout)logout.hidden=status.authentication!=='password';}}catch{}window.dispatchEvent(new Event('ai:configured'));}
+export async function discoverServer(){try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok){const status=await r.json();serverReady=!!status.configured;}}catch{}globalThis.window?.dispatchEvent(new Event('ai:configured'));}
 export function modelFor(role) { return (role==='review'?config.reviewModel:role==='research'?config.researchModel:'') || config.model; }
 export async function callAgent({ id, role='generation', instruction, input, schema, signal, web=false, maxTokens=4500 }) {
-  if (!aiConfigured()) throw new Error('AI接続設定にOpenRouterのAPIキーを入力してください。');
+  if (!aiConfigured()) throw new Error('AI接続が未設定です。運営者によるサーバー側の設定が必要です。');
   input=protectedInput(input);
   if(web&&config.classification!=='public')throw new Error('Web検索は「公開情報」の資料だけで利用できます。社内限定の資料は検索へ送れません。');
   const chosenModel=modelFor(role);
@@ -29,9 +28,9 @@ export async function callAgent({ id, role='generation', instruction, input, sch
   let response;
   const body={agent:id,model:chosenModel,input,web};
   try {
-    response=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json','X-OpenRouter-Key':config.key,'X-Data-Classification':config.classification,'X-Data-Consent':config.consent?'confirmed':'','X-Redact-Pii':config.redact?'true':'false'},body:JSON.stringify(body),signal:controller.signal});
+    response=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json','X-Data-Classification':config.classification,'X-Data-Consent':config.consent?'confirmed':'','X-Redact-Pii':config.redact?'true':'false'},body:JSON.stringify(body),signal:controller.signal});
     if(!response.ok){
-      const messages={400:'入力形式またはモデル設定を確認してください。',401:'ログイン状態とOpenRouterのAPIキーを確認してください。',402:'OpenRouterの残高が不足しています。',403:'アクセス権限・機密区分・送信同意を確認してください。',404:'指定したモデルが見つかりません。',408:'応答が時間内に届きませんでした。',413:'資料が大きすぎます。',422:'資料内の認証情報・個人情報、または根拠を確認してください。',429:'利用上限、または混雑状況を確認してください。',502:'モデルの提供元でエラーが発生しました。',503:'情報管理条件を満たすモデルの提供元がありません。'};
+      const messages={400:'入力形式またはモデル設定を確認してください。',401:'OpenRouterのAPIキーを確認してください。',402:'OpenRouterの残高が不足しています。',403:'アクセス権限・機密区分・送信同意を確認してください。',404:'指定したモデルが見つかりません。',408:'応答が時間内に届きませんでした。',413:'資料が大きすぎます。',422:'資料内の認証情報・個人情報、または根拠を確認してください。',429:'利用上限、または混雑状況を確認してください。',502:'モデルの提供元でエラーが発生しました。',503:'情報管理条件を満たすモデルの提供元がありません。'};
       throw new Error(`OpenRouterで実行できませんでした。${messages[response.status]||'しばらくしてから再開してください。'}（${response.status}）`);
     }
     const data=await response.json();

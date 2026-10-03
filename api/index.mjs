@@ -1,5 +1,5 @@
 import worker from '../dist/server/index.js';
-import { createVercelHandler } from '../server/vercel-session.mjs';
+import { createVercelHandler } from '../server/vercel-handler.mjs';
 
 const handler = createVercelHandler(worker);
 export default {

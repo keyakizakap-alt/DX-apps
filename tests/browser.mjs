@@ -67,7 +67,6 @@ await page.route('**/api/agents',async r=>{
 });
 await page.locator('#back-input').click();
 await page.locator('#settings-button').click();
-await page.locator('#api-key').fill('sk-or-v1-local-dummy');
 await page.locator('#data-consent').check();
 await page.getByRole('button',{name:'設定を適用',exact:true}).click();
 await page.locator('#run-review').click();

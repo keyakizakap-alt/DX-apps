@@ -7,20 +7,20 @@ OpenRouterで17の専門工程を分担し、企画から振り返りまで進�
 ソースは `DX-apps` の `main`、リポジトリ直下に配置しています。以前の `angle-review/` をRoot Directoryに指定している場合は空欄に戻してください。
 
 1. Vercelで `keyakizakap-alt/DX-apps` をImport。Production Branchは `main`、Root Directoryは空欄（リポジトリ直下）、Framework Presetは **Other**。
-2. Build Commandは `npm run build`、Output Directoryは `public`。`vercel.json` にも設定済み。`dist` を公開ディレクトリに指定しないでください。画面とAI APIは認証付きFunctionで提供します。
-3. Settings → Environment Variablesに `APP_ACCESS_PASSWORD`（専用の強い20文字以上のパスワード）、`SESSION_SECRET`（ランダムな32文字以上）、`OPENROUTER_API_KEY`（OpenRouterの実キー）を設定。必要なProduction / Previewに適用してください。秘密情報をGitHubに記載しないでください。
-4. 既存プロジェクトでは設定変更後にRedeploy。未設定の認証情報がある場合、アプリは初期設定画面と503を返し、業務画面・AI APIを開放しません。
-5. 発行されたURLを開き、アクセスパスワードでログイン。OpenRouter設定で資料の分類と送信同意を確認して利用してください。
+2. Build Commandは `npm run build`、Output Directoryは `public`。`vercel.json` にも設定済み。画面とAI APIはFunctionで提供します。
+3. 運営者がSettings → Environment Variablesに `OPENROUTER_API_KEY` を秘密情報として設定。Production / Previewの必要な環境に適用してください。利用者向けの入力欄はなく、ブラウザから送られたキーはAPIで拒否します。GitHubやフロントエンドにキーを記載しないでください。
+4. 設定変更後にRedeploy。`APP_ACCESS_PASSWORD` と `SESSION_SECRET` は不要で、既存の設定も削除できます。APIキー未設定でも画面と基本チェックは利用でき、AI実行はできません。
+5. 発行されたURLを開けば、そのまま利用できます。資料の分類と送信同意を確認して制作フローを開始してください。
 
-`SITE_ORIGIN` は独自ドメインを使う場合の正確なHTTPSオリジン（末尾のパスなし）を指定。通常のVercel URLは `VERCEL_URL` / `VERCEL_PROJECT_PRODUCTION_URL` をサーバーで検証します。旧ホスティングの `SITE_ORIGIN` をそのまま流用しないでください。`ALLOWED_MODELS` は省略時に標準の2モデル。`ALLOWED_USER_EMAILS` はSites向け設定で、Vercelでは署名済みログインセッションを使います。
+`SITE_ORIGIN` は独自ドメインを使う場合の正確なHTTPSオリジンを指定。通常のVercel URLは `VERCEL_URL` / `VERCEL_PROJECT_PRODUCTION_URL` を検証します。旧ホスティングの `SITE_ORIGIN` を流用しないでください。`ALLOWED_MODELS` は省略時に標準の2モデル。`ALLOWED_USER_EMAILS` はSites専用です。
 
-Vercel用ログインは単一の制作チーム／所有者向けです。セッションは4時間、HttpOnly・Secure・SameSite=Strictの署名済みCookie。資料・APIキーはCookieに入れません。パスワードまたはSESSION_SECRETの変更で発行済みセッションが無効になります。個人別権限管理やMFAは提供しません。複数利用者の識別が必要な運用ではSSO等を別途導入してください。
+Vercel版はパスワードもログインCookieも使わない公開アクセスです。利用者のAI実行は運営者のOpenRouterアカウントに課金されます。OpenRouter側の支出上限とVercel側のアクセス制限・レート制限を運営者が設定してください。アプリのレート制限はインスタンス単位の共通枠（同時3件・毎分60件）であり、アカウント全体の課金上限ではありません。入力資料は利用者ごとの画面メモリで扱い、他の利用者から参照する一覧や保存機能はありません。
 
 VercelのGitHub連携が済んでいれば、以降の `main` へのコミットが本番反映の起点になります。ビルドの成功と実際の有料AI実通信は別の確認です。
 
 ## 利用方法
 
-「制作フロー」でテーマ・読者・目的・資料を入力し、「OpenRouter設定」で機密区分と送信同意を設定する。キーをブラウザに永続保存しない。サーバーに `OPENROUTER_API_KEY` を秘密情報として設定した場合はキーの画面入力は不要。画面から入力するキーはそのページのメモリ内のみで保持し、HTTPSで同一サイトのサーバーへ渡す。
+「制作フロー」でテーマ・読者・目的・資料を入力し、「OpenRouter設定」で機密区分と送信同意を設定する。運営者がサーバーの `OPENROUTER_API_KEY` を設定し、キーはブラウザに送信しない。利用者はAPIキーを入力・変更できない。
 
 企画・調査、取材設計、依頼下書き、取材素材整理、初稿、事実・引用、表記・校正、構成、リライト、最終照合、タイトル、画像指示、入稿準備、SNS文案、アーカイブ、分析を実行する。取材前でも開始でき、文字起こしを追加して再開できる。校正の3エージェントは並行実行し、失敗時は成功済み工程を保持する。各エージェントのモデルは標準・調査・レビューに分けて指定できる。
 
@@ -46,7 +46,7 @@ Node.js 24を推奨。依存パッケージの追加インストールは不要�
 - `npm test`: 根拠検証、修正重複、情報管理、認証、同一生成元、HOTL、監督承認、再開、改ざん検知の回帰確認。
 - `npm run build`: Cloudflare Workers互換の `dist/server/index.js` を生成。
 
-本番はVercel用の署名済みログインセッション、またはSitesディスパッチャーの本人限定アクセスと `ALLOWED_USER_EMAILS` で制限。環境設定は `.env.example` を参照。実キーをGitHubにコミットしない。GitHubのリポジトリ直下をソースの保存先とする。
+Vercel版はパスワードなし。Sites版は従来の本人限定アクセスと `ALLOWED_USER_EMAILS` を使用。環境設定は `.env.example` を参照。実キーをGitHubにコミットしない。GitHubのリポジトリ直下をソースの保存先とする。
 
 ## 制約と検証
 

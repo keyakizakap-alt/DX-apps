@@ -2,7 +2,7 @@
 
 ## Trust boundaries
 
-On Vercel, `api/index.mjs` wraps the same Worker with `server/vercel-session.mjs`. All app assets and API calls are routed through this authenticated function; `public/` must remain empty apart from `.gitkeep`. Do not configure `dist/` as a publicly served output directory. A strong team access password and a separate random signing secret are mandatory; missing secrets or untrusted deployment origins fail closed. Login uses same-origin POST and issues a four-hour signed HttpOnly, Secure, SameSite=Strict cookie. No materials or API keys are stored in that cookie. Caller-provided Sites identity headers are overwritten only after session verification. This is single-owner/team authentication, not individual RBAC, SSO, or MFA. Login throttling is per instance; use Vercel Firewall for distributed controls. Logout deletes the browser cookie; rotating either access secret revokes all issued tokens, including copied tokens.
+On Vercel, `api/index.mjs` uses `server/vercel-handler.mjs` to provide intentional public access without a login, password, or authentication cookie. This adapter replaces caller-supplied Sites identity headers with one shared public identity; this is compatibility context for the Worker, not authenticated visitor identity. Only configured HTTPS deployment origins are accepted, and state-changing requests must have a matching Origin. API keys are exclusively operator-managed secrets (`OPENROUTER_API_KEY`), never client code or source files. The client has no key input or key override capability. Incoming `X-OpenRouter-Key` headers are rejected. The status API exposes only whether the server is configured, not its key. Anonymous callers can incur charges on the operator account. Configure provider-side spending caps and platform access/rate restrictions. The Worker provides a shared per-instance maximum of 3 active calls and 60 calls/minute, not a global spending limit or user identity management. User materials are kept in request memory and the individual browser; there is no shared data listing or persistence.
 
 Sites dispatch authenticates the visitor and supplies `oai-authenticated-user-id` and `oai-authenticated-user-email`. The Worker also requires the email to be in `ALLOWED_USER_EMAILS`. Do not deploy this Worker on a public origin that permits callers to supply those headers directly. Preserve the owner-private Sites audience. The development server supplies a synthetic identity and binds only to loopback; never expose it to the internet.
 
@@ -10,15 +10,15 @@ All materials and generated output are untrusted. The API accepts only a fixed a
 
 ## Enforced controls
 
-- API identity and owner allowlist; same-origin POST; JSON only; no cross-origin CORS.
+- Private Sites identity and owner allowlist; intentional public access on Vercel; same-origin POST; JSON only; no cross-origin CORS.
 - CSP allows scripts/styles/connections only from the same origin; no inline script or third-party font loading. Output is HTML-escaped, including WordPress exports.
 - Maximum request 750 kB and upstream response 1.5 MB; bounded streaming reads; 3 concurrent calls and 60 calls/minute per identity per Worker instance; 100-second upstream timeout.
-- No API key in model input, artifacts, source, or application logs. Server secret is preferred. Session BYOK is passed only to this origin and kept only in memory.
+- No API key in model input, artifacts, source, or application logs. Only the operator-managed server secret is used. Client-supplied keys are rejected.
 - Missing consent, restricted classification, internal web search, internal unmasked input, credential-like material, and secret-like model output are denied.
 - No-training and ZDR routing requirements; no relaxation after provider failure.
 - Literal citation and source-ID checks; output schema validation; supervisor intervention for unverifiable findings and unconfirmed claims.
 - Publication package approval is bound to artifact hashes. No connected external publication capability exists.
-- No material stored in server persistence, cookies, localStorage or IndexedDB. Only the Vercel authentication token is stored in a cookie. Cache-Control no-store, including Vercel/CDN cache headers. Explicit downloads are the user's responsibility.
+- No material stored in server persistence, cookies, localStorage or IndexedDB. Cache-Control no-store, including Vercel/CDN cache headers. Explicit downloads are the user's responsibility.
 
 ## Residual risks and operational requirements
 
@@ -28,7 +28,7 @@ The in-memory audit chain detects modification to a saved chain unless the entir
 
 ## Secrets and incident handling
 
-Configure `OPENROUTER_API_KEY` as a hosting secret, not as a source file. Vercel also requires `APP_ACCESS_PASSWORD` and `SESSION_SECRET` as secrets. Restrict models with `ALLOWED_MODELS`. Rotate exposed keys immediately in OpenRouter, remove server/session credentials, inspect account usage, and review access. Do not put sensitive data into GitHub issues. Contact the repository owner privately for incident reports; no external security report is sent automatically by this application.
+Configure `OPENROUTER_API_KEY` as a hosting secret, not as a source file. No Vercel access password or session signing secret is required. Restrict models with `ALLOWED_MODELS`. Rotate exposed keys immediately in OpenRouter, remove server/session credentials, inspect account usage, and review access. Do not put sensitive data into GitHub issues. Contact the repository owner privately for incident reports; no external security report is sent automatically by this application.
 
 ## Required verification before changes
 

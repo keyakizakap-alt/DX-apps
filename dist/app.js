@@ -148,11 +148,10 @@ document.querySelectorAll('[data-tab]').forEach(b=>{
 $('run-review').addEventListener('click',runReview);
 $('load-sample').addEventListener('click',()=>loadSample()); $('sample-nav').addEventListener('click',()=>loadSample());
 $('nav-editor').addEventListener('click',()=>showInput()); $('back-input').addEventListener('click',()=>showInput());
-['settings-button','guide-settings','workflow-settings'].forEach(id=>$(id).addEventListener('click',()=>{ const settings=aiSettings();$('api-key').value='';$('api-key').placeholder=settings.serverReady?'サーバー側のキーを使用。入力不要':aiConfigured()?'設定済み。変更する場合だけ入力':'sk-or-v1-…';['model','reviewModel','researchModel'].forEach(k=>$(k).value=settings[k]);$('data-classification').value=settings.classification;$('redact-pii').checked=settings.redact;$('redact-terms').value=settings.terms;$('data-consent').checked=settings.consent; $('settings-dialog').showModal(); }));
-$('settings-form').addEventListener('submit',e=>{e.preventDefault();configureAI({key:$('api-key').value,model:$('model').value,reviewModel:$('reviewModel').value,researchModel:$('researchModel').value,classification:$('data-classification').value,redact:$('redact-pii').checked,terms:$('redact-terms').value,consent:$('data-consent').checked,enabled:true,preserveKey:true});$('api-key').value='';updateConnection();$('settings-dialog').close();notify(aiConfigured()?'OpenRouterと情報管理の設定を適用しました。送信禁止の資料はAIに送りません。':'基本チェックで利用します。');});
-$('disconnect').addEventListener('click',()=>{configureAI({key:'',...aiSettings(),enabled:false,consent:false});$('api-key').value='';updateConnection();$('settings-dialog').close();notify('このページのAI接続を停止しました。基本チェックを利用できます。');});
+['settings-button','guide-settings','workflow-settings'].forEach(id=>$(id).addEventListener('click',()=>{ const settings=aiSettings();['model','reviewModel','researchModel'].forEach(k=>$(k).value=settings[k]);$('data-classification').value=settings.classification;$('redact-pii').checked=settings.redact;$('redact-terms').value=settings.terms;$('data-consent').checked=settings.consent; $('settings-dialog').showModal(); }));
+$('settings-form').addEventListener('submit',e=>{e.preventDefault();configureAI({model:$('model').value,reviewModel:$('reviewModel').value,researchModel:$('researchModel').value,classification:$('data-classification').value,redact:$('redact-pii').checked,terms:$('redact-terms').value,consent:$('data-consent').checked,enabled:true});updateConnection();$('settings-dialog').close();notify(aiConfigured()?'OpenRouterと情報管理の設定を適用しました。送信禁止の資料はAIに送りません。':'基本チェックで利用します。');});
+$('disconnect').addEventListener('click',()=>{configureAI({...aiSettings(),enabled:false,consent:false});updateConnection();$('settings-dialog').close();notify('このページのAI接続を停止しました。基本チェックを利用できます。');});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
-$('settings-dialog').addEventListener('close',()=>{$('api-key').value='';});
 $('export-dialog').addEventListener('close',()=>setStep('review'));
 $('filter').addEventListener('change',renderFindings);
 $('show-original').addEventListener('click',()=>{state.revised=false;renderArticle();}); $('show-revised').addEventListener('click',()=>{state.revised=true;renderArticle();});
@@ -176,7 +175,7 @@ initWorkflow({openReview:run=>{
 $('nav-workflow').addEventListener('click',()=>{if(state.busy)return;clearInterval(timer);hideNotice();showWorkflow();});
 showWorkflow();
 discoverServer();
-window.addEventListener('data:clear',()=>{clearInterval(timer);state={...state,findings:[],original:'',title:'',transcript:'',rules:'',isSample:false,workflowRun:null};['draft','transcript','rules','article-title','export-text','redact-terms','api-key'].forEach(id=>$(id).value='');$('article-content').textContent='';$('findings-list').textContent='';configureAI({key:'',...aiSettings(),enabled:false,consent:false,terms:''});updateInputs();updateConnection();});
+window.addEventListener('data:clear',()=>{clearInterval(timer);state={...state,findings:[],original:'',title:'',transcript:'',rules:'',isSample:false,workflowRun:null};['draft','transcript','rules','article-title','export-text','redact-terms'].forEach(id=>$(id).value='');$('article-content').textContent='';$('findings-list').textContent='';configureAI({...aiSettings(),enabled:false,consent:false,terms:''});updateInputs();updateConnection();});
 
 // Feature-detected WebMCP tools use the same actions and state as the interface.
 const context=document.modelContext;
