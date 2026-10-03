@@ -10,3 +10,9 @@ production-records/
 *.pem
 *.key
 .vercel/
+# Local editorial corpora must not be published with application code.
+angle-article-library.json
+ANGLE_Review_Article_Library.json
+*.article-library.json
+corpus-data/
+attachments/

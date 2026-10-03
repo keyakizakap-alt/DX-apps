@@ -1,6 +1,7 @@
 import { callAgent,modelFor } from './provider.js';
 import { segments,validateAIFindings } from './engine.js';
 import { audit,digest } from './security.js';
+import {EDITORIAL_PROTOCOL,editorialChecks,validateCategories} from './editorial.js';
 const str={type:'string'};
 const arr=items=>({type:'array',items,maxItems:40});
 const obj=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
@@ -33,6 +34,11 @@ export const WORKFLOW_AGENTS=[
   {id:'archive',name:'アーカイブ',role:'local',group:'振り返り',description:'素材・原稿・指摘・成果物をひとつに整理'},
   {id:'analytics',name:'分析・振り返り',role:'generation',group:'振り返り',description:'実績数値から改善案を作成',schema:documentSchema,instruction:'入力された公開後のPV、問い合わせ、制作時間などの実績だけを分析し、改善仮説と次の実験を提案。実績がない値や因果関係を捏造しない。削減率は前後の実測がある場合に限る。'}
 ];
+for(const agent of WORKFLOW_AGENTS)if(agent.instruction)agent.instruction+='\n'+EDITORIAL_PROTOCOL;
+WORKFLOW_AGENTS.find(a=>a.id==='interview').instruction+='\n過去記事と同じ説明を繰り返さず、今回新しく確認することを質問にする。効果の分母・期間・費用・導入前後・例外と、企業の主張を検証できる資料を質問する。';
+WORKFLOW_AGENTS.find(a=>a.id==='planning').instruction+='\n参考記事が選択されている場合、既存の切り口と今回取材すべき新しい疑問を分けて示す。宣伝、解説、インタビュー、体験、告知のどれに近い企画かを提案し、媒体の掲載区分は人が判断する。';
+WORKFLOW_AGENTS.find(a=>a.id==='writing').instruction+='\n媒体に合う場合は冒頭に根拠のある要点を2〜3項目まとめ、背景から取材による説明へつなぐ。参考記事の広告コード・目次の重複・写真キャプションを本文に混ぜない。';
+WORKFLOW_AGENTS.find(a=>a.id==='titles').instruction+='\neditorialContext.categoryNamesがある場合、カテゴリはそこにある名称だけを選ぶ。根拠のない期待感や不安をあおる言い回しは避け、今回の原稿の問いと答えを伝える。';
 
 export function mergeReviewResults(results) {
   const findings=[],seen=new Set();let rejected=0;
@@ -69,10 +75,11 @@ export function createRun(input) {
 export function agentState(run,id){return run.agents.find(a=>a.id===id);}
 export function exportRun(run){return JSON.parse(JSON.stringify(run));}
 export async function artifactDigest(run){return digest({article:agentState(run,'rewrite').output,titles:agentState(run,'titles').output,social:agentState(run,'social').output,publishing:agentState(run,'publishing').output});}
+async function riskDigest(run){return digest({article:agentState(run,'rewrite').output,titles:agentState(run,'titles').output,social:agentState(run,'social').output});}
 export async function approveRisk(run,reason){
   if(run.status!=='awaiting_review'||typeof reason!=='string'||reason.trim().length<10)throw new Error('確認した内容と再開する理由を10文字以上で記録してください。');
-  const hash=await digest(agentState(run,'rewrite').output);
-  run.approvals.risk={time:new Date().toISOString(),reason:reason.trim(),hash};await audit(run,'supervisor_risk_approved',{artifactHash:hash,reason:reason.trim()});
+  const publicReview=run.reviewScope==='public',hash=publicReview?await riskDigest(run):await digest(agentState(run,'rewrite').output);
+  run.approvals[publicReview?'publicRisk':'risk']={time:new Date().toISOString(),reason:reason.trim(),hash};await audit(run,'supervisor_risk_approved',{artifactHash:hash,scope:run.reviewScope||'draft',reason:reason.trim()});
 }
 export async function approvePublication(run,reason){
   if(!['awaiting_metrics','completed'].includes(run.status)||typeof reason!=='string'||reason.trim().length<10)throw new Error('制作完了後、確認内容を10文字以上で記録してください。');
@@ -98,7 +105,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
   const context=()=>{
     const draft=agentState(run,'rewrite').output?.article||agentState(run,'writing').output?.article||run.input.draft||'';
     const rules=[run.input.rules,`読者：${run.input.audience}`,`目的：${run.input.goal}`].filter(Boolean).join('\n');
-    return {topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,targetLength:run.input.targetLength,media:run.input.media,draft,transcript:segments(run.input.transcript),rules:segments(rules,'R'),sourceMaterial:segments(run.input.sources,'S'),artifacts:Object.fromEntries(run.agents.filter(s=>s.status==='done'&&s.id!=='archive').map(s=>[s.id,s.output])),verifiedFindings:run.reviewFindings,metrics:run.input.metrics};
+    return {topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,targetLength:run.input.targetLength,media:run.input.media,draft,transcript:segments(run.input.transcript),rules:segments(rules,'R'),sourceMaterial:segments(run.input.sources,'S'),editorialContext:run.input.editorialContext,artifacts:Object.fromEntries(run.agents.filter(s=>s.status==='done'&&s.id!=='archive').map(s=>[s.id,s.output])),verifiedFindings:run.reviewFindings,metrics:run.input.metrics};
   };
   const stage=async id=>{
     const state=agentState(run,id),agent=WORKFLOW_AGENTS.find(a=>a.id===id);
@@ -113,11 +120,16 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
         state.output={summary:'素材・原稿・根拠つき指摘・各エージェントの成果物をまとめました。',content:makeWordPressHTML(title,article),items:['全体の成果物はJSONで保存できます。','画像素材・掲載許諾・公開前の承認は人が確認してください。']};
       }else{
         let payload=context();
-        if(id==='research')payload={topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,sourceMaterial:segments(run.input.sources,'S'),webSearchEnabled:run.input.webSearch};
+        if(id==='research')payload={topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,sourceMaterial:segments(run.input.sources,'S'),editorialContext:run.input.editorialContext,webSearchEnabled:run.input.webSearch};
         if(run.attempts>=MAX_WORKFLOW_CALLS){const error=new Error('この制作のAI処理は48回を上限に停止しました。成果物を保存し、制作の範囲を見直してください。');error.name='ExecutionLimitError';throw error;}
         run.attempts++;const response=await callAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:['writing','rewrite'].includes(id)?8000:4000});
         run.usageRecords.push({agent:id,time:new Date().toISOString(),...response.usage});
         state.output=response.output;state.annotations=response.annotations;state.usage=response.usage;
+        if(id==='titles'){
+          const result=validateCategories(state.output.categories,run.input.editorialContext?.categoryNames);
+          state.output.categories=result.categories;
+          if(result.removed.length){state.output.summary+=' 分類マスターにない候補は除外しました。';state.categoryRejections=result.removed.length;}
+        }
         if(id==='research'){
           const sourceMaterial=segments(run.input.sources,'S');
           const all=response.output.facts;
@@ -157,12 +169,20 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{}}={}) {
     run.reviewFindings=merged.findings;
     await stage('rewrite');await stage('final_check');
     const revision=agentState(run,'rewrite').output;
-    const risky=run.rejected>0||(run.finalFindings||[]).length>0||/［要確認|\[要確認/.test(revision.article);
+    run.editorialChecks=editorialChecks(revision.article,run.input.sources,run.input.transcript);
+    const risky=run.rejected>0||(run.finalFindings||[]).length>0||run.editorialChecks.length>0||/［要確認|\[要確認/.test(revision.article);
     const riskHash=await digest(revision);
     if(risky&&run.approvals.risk?.hash!==riskHash){
+      run.reviewScope='draft';if(run.interventionHash!==riskHash){run.interventionHash=riskHash;run.interventionVersion=(run.interventionVersion||0)+1;}
       run.status='awaiting_review';await audit(run,'supervisor_required',{rejected:run.rejected,findings:run.finalFindings?.length||0,artifactHash:riskHash});onUpdate(run);return run;
     }
-    await group(['titles','visuals']);await group(['publishing','social']);await stage('archive');
+    await group(['titles','visuals']);await group(['publishing','social']);
+    const publicText=[...(agentState(run,'titles').output?.titles||[]),...(agentState(run,'social').output?.posts||[]).map(p=>p.text)].join('\n');
+    const publicChecks=editorialChecks(publicText,run.input.sources,run.input.transcript);
+    run.editorialChecks=[...run.editorialChecks,...publicChecks.map(c=>({...c,title:'タイトル・SNS：'+c.title}))];
+    const publicHash=await riskDigest(run);
+    if(publicChecks.length&&run.approvals.publicRisk?.hash!==publicHash){run.reviewScope='public';if(run.interventionHash!==publicHash){run.interventionHash=publicHash;run.interventionVersion=(run.interventionVersion||0)+1;}run.status='awaiting_review';await audit(run,'supervisor_required',{publicChecks:publicChecks.length,artifactHash:publicHash});onUpdate(run);return run;}
+    await stage('archive');
     if(!run.input.metrics.trim()){
       agentState(run,'analytics').status='awaiting';run.status='awaiting_metrics';onUpdate(run);return run;
     }

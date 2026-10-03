@@ -71,7 +71,7 @@ export function initTransfers(){
       $('brief-details').open=true;$('materials-details').open=!!(brief.sources||brief.rules||brief.transcript);$('metrics-details').open=!!brief.metrics;announce('企画・取材資料を読み込みました。資料の送信同意や承認をファイルから引き継ぐことはありません。');
     }catch(e){announce(e.message);}finally{$('brief-file').value='';}
   });
-  $('brief-save').addEventListener('click',()=>{const brief={...workflowSnapshot().input,webSearch:false};downloadText(JSON.stringify({version:1,brief},null,2),'記事の企画・取材資料.json','application/json;charset=utf-8');announce('入力内容を保存しました。「企画ファイルを読み込む」で再利用できます。');});
+  $('brief-save').addEventListener('click',()=>{const input=workflowSnapshot().input,brief=Object.fromEntries(Object.keys(BRIEF_FIELDS).map(key=>[key,key==='webSearch'?false:input[key]]));downloadText(JSON.stringify({version:1,brief},null,2),'記事の企画・取材資料.json','application/json;charset=utf-8');announce('入力内容を保存しました。「企画ファイルを読み込む」で再利用できます。参考記事は記事資料として別に保存してください。');});
   $('brief-template').addEventListener('click',()=>{downloadText(JSON.stringify({version:1,brief:{topic:'',audience:'',goal:'',media:media[0],targetLength:1500,sources:'',rules:'',transcript:'',metrics:'',webSearch:false}},null,2),'企画入力のひな形.json','application/json;charset=utf-8');announce('入力用のひな形を保存しました。');});
   window.addEventListener('data:clear',()=>{target=null;$('material-file').value='';$('brief-file').value='';$('transfer-status').textContent='';$('transfer-status').hidden=true;clearTimeout(toastTimer);});stateUpdate();
 }

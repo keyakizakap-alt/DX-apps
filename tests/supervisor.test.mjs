@@ -22,3 +22,6 @@ test('workflow execution limit stops before another paid request',async()=>{
   const run=createRun({topic:'test',audience:'test',goal:'test',sources:'',rules:'',transcript:'',metrics:''});run.attempts=MAX_WORKFLOW_CALLS;let called=false;const original=globalThis.fetch;globalThis.fetch=async()=>{called=true;throw new Error('must not call');};
   try{await runWorkflow(run);assert.equal(run.status,'budget_exceeded');assert.equal(called,false);assert.equal(run.attempts,MAX_WORKFLOW_CALLS);}finally{globalThis.fetch=original;}
 });
+test('a new title or SNS intervention notifies again within the same article revision',()=>{
+ const sent=[],center=createNotificationCenter({deliver:r=>sent.push(r)});const run={id:'same-article',revision:0,status:'awaiting_review',interventionVersion:1};center.update(run);run.status='running';center.update(run);run.status='awaiting_review';run.reviewScope='public';run.interventionVersion=2;center.update(run);center.update(run);assert.equal(sent.length,2);assert.equal(sent[1].title,'タイトル・SNS文案の確認');
+});

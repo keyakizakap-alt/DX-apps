@@ -4,6 +4,7 @@ import {aiSettings,aiConfigured} from './provider.js';
 import {nextAction,attentionItems} from './supervisor.js';
 import {createNotificationCenter} from './notifications.js';
 import {productionProgress} from './progress.js';
+import {renderKnowledge} from './knowledge-ui.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const phaseLabels={ready:'準備中',running:'進行中',awaiting_review:'確認待ち',awaiting_transcript:'取材待ち',awaiting_metrics:'公開準備完了',completed:'制作完了',cancelled:'停止中',failed:'要対応',budget_exceeded:'処理上限'};
@@ -63,7 +64,7 @@ function renderSection(){
   if(section==='team')content.innerHTML=`<h2>記事の制作工程</h2><p class="card-note">事実・表記・構成は並行して照合。企画から順に進み、取材資料や原稿の確認が必要になったらお知らせします。</p><div class="task-list">${agentRows(run,query)}</div>`;
   if(section==='tasks')content.innerHTML=`<h2>今、対応すること</h2><p class="card-note">制作の状態に応じて更新される、編集者のタスクです。</p>${items.length?items.map(i=>`<button class="task-row" data-action-open="${i.action}"><span class="agent-avatar pink">!</span><span><strong>${esc(i.title)}</strong><small>${esc(i.description)}</small></span><span>›</span></button>`).join(''):'<p class="empty-text">対応待ちの項目はありません。企画・取材資料から新しい企画を始められます。</p>'}<h3>工程を探す</h3><div class="task-list">${agentRows(run,query)}</div>`;
   if(section==='calendar')content.innerHTML=`<h2>公開予定</h2><p class="card-note">予定はこのページで管理します。公開やSNS投稿は自動実行しません。</p><label>公開予定日<input type="date" id="calendar-deadline" value="${esc(deadline)}"></label><div class="calendar-entry"><span class="pill lavender">${deadline?esc(deadline):'日付未設定'}</span><h3>${esc(input.topic||'新しい記事')}</h3><p>${esc(phaseLabels[run?.status]||'準備中')}</p><button class="button secondary" data-open="brief">企画・取材資料を開く</button></div>`;
-  if(section==='knowledge')content.innerHTML=`<h2>編集ナレッジ</h2><p class="card-note">資料やルールは企画・取材資料にまとめます。下のメモはAIへ送信しません。閉じる前に必要な内容をお手元に保存してください。</p><label>編集部のメモ<textarea id="knowledge-note" maxlength="10000" placeholder="媒体の知見、確認したいこと、次の記事へのメモ">${esc(notes)}</textarea></label><button class="button secondary" data-open="brief">企画・取材資料の編集ルールへ</button><h3>この制作で追加確認すること</h3><ul>${(run?.agents.find(a=>a.id==='research')?.output?.gaps||[]).map(g=>`<li>${esc(g)}</li>`).join('')||'<li>調査結果ができると、確認事項を表示します。</li>'}</ul>`;
+  if(section==='knowledge')renderKnowledge(content,{busy:workflowSnapshot().busy,topic:input.topic,afterRender:()=>content.insertAdjacentHTML('beforeend',`<label class="knowledge-note-label">編集部のメモ<textarea id="knowledge-note" maxlength="10000" placeholder="媒体の知見、確認したいこと、次の記事へのメモ">${esc(notes)}</textarea></label><p class="card-note">このメモは外部へ送信しません。閉じる前に必要な内容をコピーして保存してください。</p>`)});
   if(section==='templates')content.innerHTML='<h2>記事の目的から始める</h2><p class="card-note">テーマや資料を上書きせず、未入力の読者・目的を補います。</p><div class="template-grid">'+[{id:'interview',title:'インタビュー記事',text:'発言の意図・条件を保ち、読者に知見を届ける。'},{id:'business',title:'業務改善の記事',text:'課題・取り組み・検証できる成果を整理する。'},{id:'owned',title:'オウンドメディア',text:'読者の悩みに答え、次の行動につなげる。'}].map(t=>`<button class="template-card" data-template="${t.id}"><span class="pill lavender">企画・取材資料</span><h3>${t.title}</h3><p>${t.text}</p><strong>この型で準備する →</strong></button>`).join('')+'</div>';
 }
 function render(){

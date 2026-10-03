@@ -5,6 +5,7 @@ import { WORKFLOW_AGENTS,createRun,agentState,runWorkflow,exportRun,approveRisk,
 import {productionProgress} from './progress.js';
 import {nextAction} from './supervisor.js';
 import {readableArtifact,downloadText} from './transfers.js';
+import {selectedKnowledge} from './knowledge-ui.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let run=null,controller=null,selected='research',busy=false,openReview=()=>{},approvalMode='risk';
@@ -18,7 +19,7 @@ export function showWorkflow(){
   $('nav-workflow').classList.add('active');$('nav-editor').classList.remove('active');
 }
 function status(message,error=false){$('workflow-status').hidden=!message;$('workflow-status').className='notice'+(error?' error':'');$('workflow-status').textContent=message;}
-function readInput(){return{topic:$('wf-topic').value.trim(),audience:$('wf-audience').value.trim(),goal:$('wf-goal').value.trim(),media:$('wf-media').value,targetLength:Number($('wf-length').value),sources:$('wf-sources').value.trim(),rules:$('wf-rules').value.trim(),transcript:$('wf-transcript').value.trim(),metrics:$('wf-metrics').value.trim(),webSearch:$('wf-web-search').checked};}
+function readInput(){return{topic:$('wf-topic').value.trim(),audience:$('wf-audience').value.trim(),goal:$('wf-goal').value.trim(),media:$('wf-media').value,targetLength:Number($('wf-length').value),sources:$('wf-sources').value.trim(),rules:$('wf-rules').value.trim(),transcript:$('wf-transcript').value.trim(),metrics:$('wf-metrics').value.trim(),webSearch:$('wf-web-search').checked,editorialContext:selectedKnowledge()};}
 function sample(){
   if(busy)return;
   if(run&&!confirm('企画・取材資料と現在の成果物を架空のサンプルで置き換えますか？'))return;
@@ -55,11 +56,12 @@ async function start(){
     if(run.status==='awaiting_transcript'){status('企画と取材準備が完了しました。取材後に文字起こしを入力して再開してください。');$('brief-details').open=true;$('materials-details').open=true;}
     else if(run.status==='awaiting_metrics')status('制作と公開準備が完了しました。修正稿を確認し、公開後の実績を入力すると振り返りを実行できます。');
     else if(run.status==='completed')status('記事の制作が完了しました。修正稿・公開準備・振り返りの成果物を確認してください。');
-    else if(run.status==='awaiting_review'){selected='final_check';status('根拠不足または確認候補が見つかったため自動処理を止めました。編集担当者が内容を確認し、判断理由を記録すると再開できます。');}
+    else if(run.status==='awaiting_review'){selected=run.reviewScope==='public'?'social':'final_check';status('資料で確認が必要な箇所が見つかりました。編集担当者が内容を確認し、判断理由を記録すると再開できます。');}
     else status(run.error||'実行を停止しました。完了済みの工程を残して再開できます。',run.status==='failed');
   }finally{busy=false;controller=null;render();}
 }
 function render(){
+  const knowledge=selectedKnowledge();$('workflow-references').innerHTML=`<strong>参考記事${knowledge?'：'+knowledge.references.length+'本を選択':'を活かす'}</strong><p>${knowledge?knowledge.references.map(r=>esc(r.title)).join('<br>'):'過去記事から、切り口・構成・分類のヒントを選べます。'}</p><button class="button secondary" data-section="knowledge" ${busy?'disabled':''}>過去記事を探す</button>`;
   const agents=run?.agents||WORKFLOW_AGENTS.map(a=>({id:a.id,status:'queued',output:null}));
   const completed=agents.filter(a=>a.status==='done').length;
   $('wf-completed').textContent=`${completed} / ${WORKFLOW_AGENTS.length}`;
@@ -92,7 +94,7 @@ function render(){
   $('workflow-approve-publication').disabled=!run||!['awaiting_metrics','completed'].includes(run.status)||busy;
   $('approval-panel').hidden=run?.status!=='awaiting_review'&&approvalMode!=='publication';
   if(run?.status==='awaiting_review'){
-    approvalMode='risk';$('approval-title').textContent='編集担当者の確認が必要です';$('approval-description').textContent=`最終の確認候補：${run.finalFindings?.length||0}件／根拠を検証できなかった指摘：${run.rejected}件。原稿と根拠を確認し、未確認事項に対応した上で再開してください。`;$('approval-submit').textContent='判断を記録して再開';
+    approvalMode='risk';$('approval-title').textContent=run.reviewScope==='public'?'タイトル・SNS文案を確認してください':'編集担当者の確認が必要です';$('approval-description').textContent=`原稿の確認候補：${run.finalFindings?.length||0}件／数字・表現の追加確認：${run.editorialChecks?.length||0}件／原文を確認できなかった指摘：${run.rejected}件。${run.reviewScope==='public'?'タイトルとSNS文案':'原稿'}を資料と照合し、判断理由を記録してください。`;$('approval-submit').textContent='判断を記録して再開';
   }
   $('workflow-review').disabled=agentState(run||{agents:[]},'final_check')?.status!=='done';
   renderArtifact();
@@ -118,6 +120,7 @@ function renderArtifact(){
     html+=out.findings.length?out.findings.map(f=>`<div class="artifact-finding"><span class="badge">${esc(f.category)}</span><h3>${esc(f.title)}</h3><p>${esc(f.explanation)}</p><div class="quoted">${esc(f.quote)}</div><div class="evidence"><div class="evidence-label">根拠 ${esc(f.sourceId)}</div><blockquote>${esc(f.evidence)}</blockquote></div>${f.suggestion?`<h4>修正案</h4><p>${esc(f.suggestion)}</p>`:''}</div>`).join(''):'<p>確認候補は見つかりませんでした。公開前に、原稿と取材資料を編集者が最終確認してください。</p>';
     if(item.validated?.rejected)html+=`<div class="notice">${item.validated.rejected}件は根拠を検証できなかったため除外しました。</div>`;
   }
+  if(['final_check','titles','social'].includes(selected)&&run?.editorialChecks?.length)html+=`<h3>公開前に資料で確認すること</h3>${run.editorialChecks.filter(c=>selected==='final_check'||c.title.startsWith('タイトル・SNS')).map(c=>`<div class="editorial-check"><strong>${esc(c.title)}</strong><p>${esc(c.description)}</p></div>`).join('')}`;
   if(out.items?.length)html+=`<h3>確認項目・次の作業</h3><ul>${out.items.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
   for(const [key,label] of [['titles','タイトル候補'],['headings','見出し'],['tags','タグ候補'],['categories','カテゴリ候補']])if(out[key]?.length)html+=`<h3>${label}</h3><ul>${out[key].map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
   if(out.posts?.length)html+=out.posts.map(p=>`<h3>${esc(p.platform)} 投稿下書き</h3><div class="artifact-document">${esc(p.text)}</div>`).join('');
@@ -130,7 +133,7 @@ export function initWorkflow(options={}){
   openReview=options.openReview||(()=>{});
   $('workflow-run').addEventListener('click',start);
   $('workflow-stop').addEventListener('click',()=>controller?.abort());
-  $('workflow-preview').addEventListener('click',()=>{const settings=aiSettings(),input=readInput(),labels={topic:'企画テーマ',audience:'想定読者',goal:'記事の目的',media:'掲載媒体',targetLength:'文字数の目安',sources:'調査資料',rules:'編集ルール',transcript:'文字起こし',metrics:'公開後の実績'};const text=Object.entries(labels).map(([key,label])=>label+'\n'+(input[key]||'未入力')).join('\n\n');$('privacy-preview').textContent=settings.redact?redactText(text,settings.terms):text;$('privacy-dialog').showModal();});
+  $('workflow-preview').addEventListener('click',()=>{const settings=aiSettings(),input=readInput(),labels={topic:'企画テーマ',audience:'想定読者',goal:'記事の目的',media:'掲載媒体',targetLength:'文字数の目安',sources:'調査資料',rules:'編集ルール',transcript:'文字起こし',metrics:'公開後の実績'};let text=Object.entries(labels).map(([key,label])=>label+'\n'+(input[key]||'未入力')).join('\n\n');if(input.editorialContext)text+='\n\n参考記事（今回の事実根拠には使いません）\n'+input.editorialContext.references.map(r=>[r.title,r.date,r.url,[...r.industry,...r.themes].join(' / '),r.excerpt].join('\n')).join('\n\n')+'\n\n分類の名称\n'+input.editorialContext.categoryNames.join(' / ');$('privacy-preview').textContent=settings.redact?redactText(text,settings.terms):text;$('privacy-dialog').showModal();});
   $('workflow-clear').addEventListener('click',()=>{
     if(busy){status('実行を停止してから資料を消去してください。',true);return;}
     if(!confirm('入力資料・成果物・資料の取り扱い設定を消去しますか？必要な記録は先に保存してください。'))return;
@@ -149,6 +152,7 @@ export function initWorkflow(options={}){
   $('artifact-download').addEventListener('click',()=>{const out=selectedArtifact();if(out)downloadText(readableArtifact(out),`記事の${WORKFLOW_AGENTS.find(a=>a.id===selected).name.replace('エージェント','')}.txt`);});
   $('project-stages').addEventListener('click',e=>{const button=e.target.closest('[data-progress-agent]');if(button){selected=button.dataset.progressAgent;render();$('artifact-title').scrollIntoView({behavior:'smooth',block:'center'});}});
   window.addEventListener('materials:changed',render);
+  window.addEventListener('knowledge:changed',render);
   $('workflow-review').addEventListener('click',()=>{if(run)openReview(run);});
   window.addEventListener('ai:configured',render);
   window.addEventListener('workflow:updated',()=>{approvalMode='risk';render();status('修正を反映しました。続きから再開し、原稿と公開用データをもう一度確認してください。');});

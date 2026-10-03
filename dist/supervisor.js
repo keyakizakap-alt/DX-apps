@@ -18,7 +18,7 @@ export function nextAction(run) {
 export function attentionItems(run) {
   if (!run) return [];
   const items=[];
-  if(run.status==='awaiting_review')items.push({id:'risk',title:'最終原稿と根拠の確認',description:'根拠・未確認事項を確認し、判断理由を記録してください。',action:'risk'});
+  if(run.status==='awaiting_review')items.push({id:'risk',title:run.reviewScope==='public'?'タイトル・SNS文案の確認':'最終原稿と根拠の確認',description:'根拠・未確認事項を確認し、判断理由を記録してください。',action:'risk'});
   if(run.status==='awaiting_transcript')items.push({id:'transcript',title:'取材資料の追加',description:'文字起こしの入力後に、執筆を再開できます。',action:'transcript'});
   if(['awaiting_metrics','completed'].includes(run.status)&&!run.approvals.publication)items.push({id:'publication',title:'公開用データの承認',description:'原稿・タイトル・SNS案・画像の権利を確認してください。',action:'publication'});
   if(run.status==='awaiting_metrics')items.push({id:'metrics',title:'公開後の実績入力',description:'公開後に実績を追加すると振り返りを実行できます。',action:'metrics'});
@@ -27,5 +27,5 @@ export function attentionItems(run) {
 }
 export function attentionKey(run, item) {
   // Revision-bound: a changed article must raise a fresh intervention notification.
-  return JSON.stringify([run.id,item.id,run.revision||0,item.id==='failure'?run.attempts:0]);
+  return JSON.stringify([run.id,item.id,run.revision||0,item.id==='failure'?run.attempts:item.id==='risk'?run.interventionVersion||0:0]);
 }
