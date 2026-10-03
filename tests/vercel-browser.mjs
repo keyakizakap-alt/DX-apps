@@ -38,7 +38,8 @@ try {
   await page.locator('#nav-editor').waitFor();
   assert.equal(await page.locator('input[type=password]').count(), 0);
   await page.locator('#settings-button').click();
-  assert.equal(await page.locator('#api-key').count(), 0);
+  assert.equal(await page.locator('#api-key,#model,#reviewModel,#researchModel').count(), 0);
+  assert.equal(await page.locator('#settings-dialog h2').textContent(), '資料の取り扱い');
   await page.locator('[data-close="settings-dialog"]').click();
   await page.locator('#nav-editor').click();
   await page.locator('#run-review').click();

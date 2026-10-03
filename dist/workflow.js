@@ -1,5 +1,5 @@
 import { SAMPLE } from './engine.js';
-import { aiConfigured,aiSettings,modelFor,protectedInput } from './provider.js';
+import { aiConfigured,aiSettings,protectedInput } from './provider.js';
 import { redactText,audit,verifyAudit } from './security.js';
 import { WORKFLOW_AGENTS,createRun,agentState,runWorkflow,exportRun,approveRisk,approvePublication,publicationApproved } from './agents.js';
 const $=id=>document.getElementById(id);
@@ -21,12 +21,12 @@ function sample(){
   $('wf-goal').value='取材をもとに継続的な改善の仕組みと、AIを使う際に人が確認する役割を伝える';
   $('wf-sources').value='【架空の制作サンプル】株式会社ネクストワークは企業の業務改善を支援する。この記事は架空の取材サンプルであり、実在企業の成果を示すものではない。';
   $('wf-rules').value=SAMPLE.rules;$('wf-transcript').value=SAMPLE.transcript;$('wf-metrics').value='';$('wf-web-search').checked=false;
-  run=null;selected='research';render();status('架空のブリーフと取材資料を読み込みました。AIの実行にはOpenRouterの設定が必要です。');$('brief-details').open=true;
+  run=null;selected='research';render();status('架空のブリーフと取材資料を読み込みました。AIを使う前に、資料の取り扱いを確認してください。');$('brief-details').open=true;
 }
 function coreSignature(input){const {transcript,metrics,...core}=input;return JSON.stringify(core);}
 async function start(){
   if(busy)return;
-  if(!aiConfigured()){status('OpenRouterのAPIキーを設定すると、専門チームを実行できます。');$('workflow-settings').click();return;}
+  if(!aiConfigured()){if(!aiSettings().serverReady){status('AI制作は準備中です。原稿レビューの基本チェックをご利用ください。');return;}status('資料の取り扱いを確認して、専門チームを実行してください。');$('workflow-settings').click();return;}
   let input;try{input=protectedInput(readInput());}catch(e){status(e.message,true);return;}
   if(input.webSearch&&aiSettings().classification!=='public'){status('Web検索は公開情報のみで使えます。社内資料は検索に送信しません。',true);return;}
   if(!input.topic||!input.audience||!input.goal){status('企画テーマ・想定読者・記事の目的を入力してください。',true);$('brief-details').open=true;return;}
@@ -56,18 +56,14 @@ function render(){
   const agents=run?.agents||WORKFLOW_AGENTS.map(a=>({id:a.id,status:'queued',output:null}));
   const completed=agents.filter(a=>a.status==='done').length;
   $('wf-completed').textContent=`${completed} / ${WORKFLOW_AGENTS.length}`;
-  const used=run?.usageRecords||[];
   $('wf-calls').textContent=run?.attempts||0;
-  $('wf-tokens').textContent=used.reduce((n,a)=>n+a.promptTokens+a.completionTokens,0).toLocaleString();
-  const costs=used.map(a=>a.cost);
-  $('wf-cost').textContent=costs.length&&costs.every(c=>typeof c==='number')?`$${costs.reduce((a,b)=>a+b,0).toFixed(4)}`:'—';
   $('workflow-phase').textContent=busy?'実行中':({awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止'}[run?.status]||'待機中');
   $('workflow-run').disabled=busy;
   $('workflow-run').textContent=run&&!['ready','completed'].includes(run.status)?'続きから再開':run?.status==='completed'?'新しい制作を開始':'専門チームで制作を開始';
   if(run?.status==='completed')$('workflow-run').textContent='完了した成果物を確認';
   $('workflow-stop').hidden=!busy;$('workflow-sample').disabled=busy;
   inputIDs.forEach(id=>$('wf-'+id).disabled=busy);
-  $('workflow-connection').textContent=aiConfigured()?`標準モデル：${aiSettings().model}`:'OpenRouterの設定が必要です';
+  $('workflow-connection').textContent=aiConfigured()?'資料の取り扱いを確認済み':'資料の取り扱いを確認してください';
   $('workflow-action-hint').textContent=run?.status==='awaiting_transcript'?'文字起こしを追加して、執筆以降を再開できます。':run?.status==='awaiting_metrics'?'公開後の実績は制作ブリーフから追加できます。':'取材がまだでも、企画と取材準備から始められます。';
   let html='',lastGroup='';
   for(const [index,agent] of WORKFLOW_AGENTS.entries()){
@@ -89,7 +85,7 @@ function render(){
 function renderArtifact(){
   const agent=WORKFLOW_AGENTS.find(a=>a.id===selected),item=run&&agentState(run,selected);
   $('artifact-title').textContent=agent.name;
-  $('artifact-subtitle').textContent=item?.model?`${statusLabel[item.status]} · ${item.model} · ${(item.durationMs/1000).toFixed(1)}秒`:agent.description;
+  $('artifact-subtitle').textContent=item?.model?`${statusLabel[item.status]} · ${(item.durationMs/1000).toFixed(1)}秒`:agent.description;
   $('artifact-download').disabled=!item?.output;
   if(!item?.output){
     $('artifact-content').innerHTML=`<div class="artifact-empty"><span class="line-symbol" aria-hidden="true">[ ${String(WORKFLOW_AGENTS.indexOf(agent)+1).padStart(2,'0')} ]</span><h3>${item?.status==='awaiting'?'必要な資料を待っています':item?.status==='running'?'専門エージェントが作業中です':item?.status==='failed'?'この工程で停止しました':'工程の成果物がここに届きます'}</h3><p>${esc(item?.error||agent.description)}</p><p>${item?.status==='failed'?'完了済みの工程をやり直さず、続きから再開できます。':'エージェントの出力は提案です。根拠を確認して、編集者が最終判断してください。'}</p></div>`;return;
@@ -120,7 +116,7 @@ export function initWorkflow(options={}){
   $('workflow-preview').addEventListener('click',()=>{const settings=aiSettings();const input=readInput();$('privacy-preview').textContent=settings.redact?redactText(JSON.stringify(input,null,2),settings.terms):JSON.stringify(input,null,2);$('privacy-dialog').showModal();});
   $('workflow-clear').addEventListener('click',()=>{
     if(busy){status('実行を停止してから資料を消去してください。',true);return;}
-    if(!confirm('入力資料・成果物・このページのAI接続情報を消去しますか？必要な記録は先に保存してください。'))return;
+    if(!confirm('入力資料・成果物・資料の取り扱い設定を消去しますか？必要な記録は先に保存してください。'))return;
     run=null;approvalMode='risk';inputIDs.filter(id=>!['media','length','web-search'].includes(id)).forEach(id=>$('wf-'+id).value='');$('privacy-preview').textContent='';$('approval-reason').value='';window.dispatchEvent(new Event('data:clear'));render();status('入力と成果物を消去しました。保存済みのファイルはお手元で管理してください。');
   });
   $('workflow-sample').addEventListener('click',sample);

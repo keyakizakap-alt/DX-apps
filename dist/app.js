@@ -32,7 +32,7 @@ function showInput(confirmLoss = true) {
 }
 function updateConnection() {
   const connected = aiConfigured();
-  $('connection-status').textContent = connected ? 'OpenRouter設定済み' : 'OpenRouter未設定';
+  $('connection-status').textContent = connected ? 'AIを利用中' : '基本チェックで利用中';
   $('mode-description').textContent = connected ? '事実・引用、表記・校正、構成の3エージェントで照合します。' : '基本チェック：表記・数値・引用の一致を確認します。';
   $('run-review').innerHTML = '<span aria-hidden="true">✦</span> ' + (connected ? '専門チームでレビュー' : 'レビューを開始');
   window.dispatchEvent(new Event('ai:configured'));
@@ -148,9 +148,9 @@ document.querySelectorAll('[data-tab]').forEach(b=>{
 $('run-review').addEventListener('click',runReview);
 $('load-sample').addEventListener('click',()=>loadSample()); $('sample-nav').addEventListener('click',()=>loadSample());
 $('nav-editor').addEventListener('click',()=>showInput()); $('back-input').addEventListener('click',()=>showInput());
-['settings-button','guide-settings','workflow-settings'].forEach(id=>$(id).addEventListener('click',()=>{ const settings=aiSettings();['model','reviewModel','researchModel'].forEach(k=>$(k).value=settings[k]);$('data-classification').value=settings.classification;$('redact-pii').checked=settings.redact;$('redact-terms').value=settings.terms;$('data-consent').checked=settings.consent; $('settings-dialog').showModal(); }));
-$('settings-form').addEventListener('submit',e=>{e.preventDefault();configureAI({model:$('model').value,reviewModel:$('reviewModel').value,researchModel:$('researchModel').value,classification:$('data-classification').value,redact:$('redact-pii').checked,terms:$('redact-terms').value,consent:$('data-consent').checked,enabled:true});updateConnection();$('settings-dialog').close();notify(aiConfigured()?'OpenRouterと情報管理の設定を適用しました。送信禁止の資料はAIに送りません。':'基本チェックで利用します。');});
-$('disconnect').addEventListener('click',()=>{configureAI({...aiSettings(),enabled:false,consent:false});updateConnection();$('settings-dialog').close();notify('このページのAI接続を停止しました。基本チェックを利用できます。');});
+['settings-button','guide-settings','workflow-settings'].forEach(id=>$(id).addEventListener('click',()=>{ const settings=aiSettings();$('data-classification').value=settings.classification;$('redact-pii').checked=settings.redact;$('redact-terms').value=settings.terms;$('data-consent').checked=settings.consent; $('settings-dialog').showModal(); }));
+$('settings-form').addEventListener('submit',e=>{e.preventDefault();configureAI({...aiSettings(),classification:$('data-classification').value,redact:$('redact-pii').checked,terms:$('redact-terms').value,consent:$('data-consent').checked,enabled:$('data-consent').checked});updateConnection();$('settings-dialog').close();notify(aiConfigured()?'資料の取り扱いを適用しました。送信禁止の資料はAIに送りません。':'基本チェックで利用します。');});
+$('disconnect').addEventListener('click',()=>{configureAI({...aiSettings(),enabled:false,consent:false});updateConnection();$('settings-dialog').close();notify('このページからのAIへの送信を停止しました。基本チェックを利用できます。');});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
 $('export-dialog').addEventListener('close',()=>setStep('review'));
 $('filter').addEventListener('change',renderFindings);

@@ -79,7 +79,7 @@ await page.unroute('**/api/agents');
 await page.route('**/api/agents',r=>r.fulfill({status:401,contentType:'application/json',body:'{}'}));
 await page.locator('#run-review').click();
 await page.locator('#notice.error').waitFor({state:'visible'});
-assert.ok((await page.locator('#notice').textContent()).includes('APIキー'));
+assert.ok((await page.locator('#notice').textContent()).includes('運営者'));
 assert.ok((await page.locator('#draft').inputValue()).includes('50%'));
 assert.equal(await page.locator('#run-review').isEnabled(),true);
 await page.locator('#settings-button').click();
