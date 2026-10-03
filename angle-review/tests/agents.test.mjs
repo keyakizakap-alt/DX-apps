@@ -1,0 +1,55 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {configureAI} from '../dist/provider.js';
+import {createRun,runWorkflow,agentState,approveRisk,approvePublication,publicationApproved,makeWordPressHTML,applyEditorialRevision} from '../dist/agents.js';
+import {verifyAudit} from '../dist/security.js';
+const input={topic:'業務改善',audience:'経営者',goal:'改善方法を伝える',media:'ビジネスメディア',targetLength:500,sources:'業務改善の取材。',rules:'取材にない断定をしない。',transcript:'一部が改善した。',metrics:'',webSearch:false};
+function fixture(id,risk=false){
+  if(['facts','style','structure','final_check'].includes(id))return {findings:id==='final_check'&&risk?[{category:'文意',severity:'check',title:'不正な根拠',explanation:'根拠がない',quote:'一部が改善した。',source_id:'T999',evidence:'架空',suggestion:''}]:[]};
+  if(['writing','rewrite'].includes(id))return {summary:'取材から執筆',title:'改善の仕組み',article:'一部が改善した。'};
+  if(id==='research')return {summary:'調査',themes:['改善'],facts:[],gaps:[]};
+  if(id==='titles')return {summary:'タイトル',titles:['改善の仕組み'],headings:['背景'],tags:['改善'],categories:['ビジネス']};
+  if(id==='social')return {summary:'投稿下書き',posts:[{platform:'X',text:'改善の仕組み ［記事URL］'}]};
+  return {summary:'準備しました',content:'人による確認を含む下書きです。',items:['確認項目']};
+}
+function mock({risk=false,failOnce=''}={}){
+  let failed=false;const calls=[];
+  return {calls,fetch:async(url,options)=>{
+    const body=JSON.parse(options.body);calls.push(body.agent);
+    if(body.agent===failOnce&&!failed){failed=true;return Response.json({}, {status:503});}
+    return Response.json({model:body.model,choices:[{finish_reason:'stop',message:{content:JSON.stringify(fixture(body.agent,risk))}}],usage:{prompt_tokens:10,completion_tokens:20,cost:0.001}});
+  }};
+}
+configureAI({key:'sk-or-v1-local-dummy',model:'openai/gpt-4.1-mini',classification:'internal',redact:true,consent:true,enabled:true});
+test('full flow pauses for metrics, resumes without rerunning completed agents, and exports approved package',async()=>{
+  const original=globalThis.fetch;const api=mock();globalThis.fetch=api.fetch;
+  try{
+    const run=createRun(input);await runWorkflow(run);
+    assert.equal(run.status,'awaiting_metrics');assert.equal(api.calls.length,15); // archive is local
+    assert.equal(await publicationApproved(run),false);
+    await approvePublication(run,'取材根拠と公開前チェック項目を確認しました');
+    assert.equal(await publicationApproved(run),true);
+    run.input.metrics='PV100、問い合わせ2件。';await runWorkflow(run);
+    assert.equal(run.status,'completed');assert.equal(api.calls.length,16);
+    assert.equal(await verifyAudit(run.audit),true);
+    agentState(run,'social').output.posts[0].text='変更';assert.equal(await publicationApproved(run),false);
+  }finally{globalThis.fetch=original;}
+});
+test('missing transcript stops after preparation without inventing an interview',async()=>{
+  const original=globalThis.fetch;const api=mock();globalThis.fetch=api.fetch;
+  try{const run=createRun({...input,transcript:''});await runWorkflow(run);assert.equal(run.status,'awaiting_transcript');assert.equal(api.calls.length,4);assert.equal(agentState(run,'writing').status,'queued');run.input.transcript=input.transcript;await runWorkflow(run);assert.equal(run.status,'awaiting_metrics');assert.equal(api.calls.filter(s=>s==='research').length,1);}finally{globalThis.fetch=original;}
+});
+test('unverified claims trigger HOTL intervention and require a recorded decision',async()=>{
+  const original=globalThis.fetch;const api=mock({risk:true});globalThis.fetch=api.fetch;
+  try{const run=createRun(input);await runWorkflow(run);assert.equal(run.status,'awaiting_review');assert.equal(agentState(run,'publishing').status,'queued');await assert.rejects(()=>approveRisk(run,'短い'),/10文字/);await approveRisk(run,'除外された指摘の根拠と修正稿を確認して再開します');await runWorkflow(run);assert.equal(run.status,'awaiting_metrics');assert.equal(api.calls.filter(s=>s==='final_check').length,1);assert.equal(await verifyAudit(run.audit),true);}finally{globalThis.fetch=original;}
+});
+test('parallel agent failure preserves successful work and retries only the failed stage',async()=>{
+  const original=globalThis.fetch;const api=mock({failOnce:'style'});globalThis.fetch=api.fetch;
+  try{const run=createRun(input);await runWorkflow(run);assert.equal(run.status,'failed');assert.equal(agentState(run,'facts').status,'done');assert.equal(agentState(run,'style').status,'failed');await runWorkflow(run);assert.equal(run.status,'awaiting_metrics');assert.equal(api.calls.filter(s=>s==='style').length,2);assert.equal(api.calls.filter(s=>s==='facts').length,1);assert.equal(await verifyAudit(run.audit),true);}finally{globalThis.fetch=original;}
+});
+test('WordPress output escapes user-provided HTML',()=>{assert.ok(makeWordPressHTML('<script>title</script>','<img src=x onerror=alert(1)>').includes('&lt;img'));assert.ok(!makeWordPressHTML('title','<script>bad</script>').includes('<script>'));});
+test('editor revisions update the workflow draft and invalidate downstream artifacts and approvals',async()=>{
+  const run=createRun(input);agentState(run,'rewrite').output={title:'原稿',article:'修正前'};agentState(run,'archive').status='done';run.approvals.publication={hash:'old'};
+  await applyEditorialRevision(run,'修正後');
+  assert.equal(agentState(run,'rewrite').output.article,'修正後');assert.equal(agentState(run,'archive').status,'queued');assert.deepEqual(run.approvals,{});assert.equal(run.status,'ready');assert.equal(await verifyAudit(run.audit),true);
+});

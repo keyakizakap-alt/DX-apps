@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132e35">
+  <title>ANGLE Review — 専門エージェントと進める記事制作</title>
+  <meta name="description" content="初稿と取材文字起こしを照合し、根拠を確認しながら修正を進める編集支援アプリ。">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23132e35'/%3E%3Cpath d='M8 24 16 8l8 16M12 18h8' fill='none' stroke='%2373e0c1' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a href="./" class="brand" aria-label="ANGLE Review ホーム"><span class="brand-mark">A<span>／</span></span><span>ANGLE<span class="brand-sub">REVIEW</span></span></a>
+    <div class="nav-label">EDITORIAL WORKSPACE</div>
+    <button class="nav-item active" id="nav-workflow"><span aria-hidden="true">◫</span> 制作フロー</button>
+    <button class="nav-item" id="nav-editor"><span aria-hidden="true">▤</span> 原稿レビュー</button>
+    <button class="nav-item" id="sample-nav"><span aria-hidden="true">◈</span> サンプルで試す</button>
+    <div class="sidebar-bottom"><span class="small-label">YOUR EDITORIAL PARTNER</span><p>判断するのは、編集者。<br>その根拠を、見つけやすく。</p><button class="nav-item" id="settings-button"><span aria-hidden="true">⚙</span> AI接続設定</button><div class="connection-status" id="connection-status">基本チェックで利用中</div></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span>編集ワークスペース <span class="slash">/</span> <strong>原稿レビュー</strong></span><span class="private-label"><span aria-hidden="true">▣</span> 入力内容は自動保存されません</span></header>
+    <main>
+      <div class="page-heading"><div><div class="eyebrow">YOUR SPECIALIST EDITORIAL TEAM</div><h1>専門チームと、<br class="mobile-only">記事づくりを。</h1><p>企画から公開準備、振り返りまで。各工程を専門エージェントが分担。</p></div><button class="button secondary" id="load-sample">レビュー用サンプル</button></div>
+      <ol class="steps" id="steps-review" aria-label="編集のステップ"><li class="current" id="step-input"><span>01</span> 原稿を準備</li><li id="step-review"><span>02</span> 根拠をレビュー</li><li id="step-export"><span>03</span> 修正稿を書き出す</li></ol>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section id="workflow-view" hidden>
+        <div class="workflow-intro"><div><span class="badge team-badge">17の専門工程</span><span class="workflow-intro-text">企画 → 取材準備 → 執筆 → 校正 → 公開準備 → 振り返り</span></div><button id="workflow-settings" class="button secondary">OpenRouter設定</button></div>
+        <div id="workflow-status" class="notice" role="status" aria-live="polite" hidden></div>
+        <details class="panel workflow-brief" id="brief-details" open><summary><span>制作ブリーフ</span><span class="brief-summary-note">テーマと資料を共有して、チームを動かす</span></summary>
+          <div class="brief-fields">
+            <label class="span-two">企画テーマ<input id="wf-topic" maxlength="300" placeholder="例：AIを使った業務改善を、一度きりで終わらせない方法"></label>
+            <label>想定読者<input id="wf-audience" maxlength="300" placeholder="例：中小企業の経営者・業務改善担当者"></label>
+            <label>記事の目的<input id="wf-goal" maxlength="500" placeholder="例：改善を継続する仕組みを伝える"></label>
+            <label>掲載媒体<select id="wf-media"><option>ビジネスメディア</option><option>オウンドメディア</option><option>インタビュー記事</option><option>その他</option></select></label>
+            <label>記事の文字数目安<input id="wf-length" type="number" min="300" max="8000" step="100" value="1500"></label>
+            <label>調査資料・参照情報<textarea id="wf-sources" maxlength="20000" placeholder="参照したい資料本文を貼り付けてください。URLだけでは本文を取得しません。"></textarea></label>
+            <label>媒体の編集ルール<textarea id="wf-rules" maxlength="15000" placeholder="文体、表記、引用のルールなど"></textarea></label>
+            <label class="span-two">取材の文字起こし <span class="optional-label">取材前なら空欄のままで開始できます</span><textarea id="wf-transcript" maxlength="50000" placeholder="取材後、ここに文字起こしを貼り付けて再開してください。"></textarea></label>
+            <label class="span-two">公開後の実績 <span class="optional-label">後から入力できます</span><textarea id="wf-metrics" maxlength="10000" placeholder="例：PV 3,000／問い合わせ5件／従来の校正時間35分／今回20分。対象期間や比較条件も記載してください。"></textarea></label>
+          </div>
+          <div class="brief-options"><label class="checkbox-label"><input id="wf-web-search" type="checkbox"> 調査エージェントで公開情報のWeb検索を使う <span>検索の追加料金が発生します</span></label><p>検索に送るのは企画テーマ・読者・目的・調査資料です。取材文字起こしは検索工程には送りません。</p></div>
+          <div class="brief-footer"><button id="workflow-sample" class="button secondary">架空の制作ブリーフを使う</button><span id="workflow-connection">OpenRouterの設定が必要です</span></div>
+        </details>
+        <div class="workflow-control-row"><span class="badge">HOTL：通常は自動・例外で人が介入</span><button class="button secondary" id="workflow-preview">送信内容を確認</button><button class="button secondary" id="workflow-clear">資料と成果物を消去</button></div><div id="approval-panel" class="approval-panel" hidden><h3 id="approval-title">監督者の確認が必要です</h3><p id="approval-description"></p><label for="approval-reason">確認した内容と判断理由</label><textarea id="approval-reason" maxlength="1500" placeholder="確認した根拠、未確認事項の対応、再開または公開準備を承認する理由を記録してください。"></textarea><button class="button primary" id="approval-submit">確認して再開</button></div><div class="workflow-actions"><p id="workflow-action-hint">取材がまだでも、企画と取材準備から始められます。</p><div><button id="workflow-stop" class="button secondary" hidden>実行を停止</button><button id="workflow-run" class="button primary">専門チームで制作を開始</button></div></div>
+        <div class="workflow-summary"><div><span>完了した工程</span><strong id="wf-completed">0 / 17</strong></div><div><span>API呼び出し</span><strong id="wf-calls">0</strong></div><div><span>使用トークン</span><strong id="wf-tokens">0</strong></div><div><span>API報告額</span><strong id="wf-cost">—</strong></div></div>
+        <div class="workflow-grid"><aside class="panel agents-panel"><div class="panel-heading"><h2>専門チーム</h2><span id="workflow-phase" class="badge">待機中</span></div><div id="agent-list"></div></aside><div class="panel artifacts-panel"><div class="panel-heading"><div><h2 id="artifact-title">工程の成果物</h2><p id="artifact-subtitle">左の工程を選ぶと、内容を確認できます。</p></div><button id="artifact-download" class="button secondary" disabled>保存</button></div><div id="artifact-content" class="artifact-content"><div class="artifact-empty"><span class="line-symbol" aria-hidden="true">[ 17 ]</span><h3>ひとつの指示から、<br>専門チームが順番に動く。</h3><p>企画と取材設計を引き継いで執筆。事実・表記・構成は並行して確認し、修正稿をもう一度照合します。</p><p>取材内容や実績が必要になったら入力待ちになり、資料を追加して続きから再開できます。</p></div></div><div class="artifact-footer"><button id="workflow-review" class="button primary" disabled>修正稿を確認・承認</button><button id="workflow-approve-publication" class="button secondary approval-button" disabled>公開用データを承認</button><button id="workflow-wordpress" class="button secondary" disabled>入稿用HTMLを保存</button><button id="workflow-bundle" class="button secondary" disabled>制作記録を保存</button></div></div></div>
+        <div class="human-handoff"><strong>人が担当する工程</strong><span>企画の最終判断・依頼の送信・取材・素材の許諾と加工・外部校正・公開と投稿</span><p>エージェントは提案と下書き、入稿用データを用意します。サービスへの直接接続はまだ設定されていません。</p></div>
+      </section>
+      <section id="input-view" class="input-grid">
+        <div class="panel input-panel">
+          <div class="panel-heading"><div><h2>記事と取材素材</h2><p>文章を貼り付けて、レビューを始めましょう。</p></div><span class="badge" id="sample-badge">架空のサンプル</span></div>
+          <div class="article-meta"><label>記事タイトル<input id="article-title" maxlength="150" placeholder="記事タイトルを入力"></label><label>掲載媒体<select id="media"><option>ビジネスメディア</option><option>オウンドメディア</option><option>インタビュー記事</option><option>その他</option></select></label></div>
+          <div class="tabs" role="tablist" aria-label="入力素材"><button id="tab-draft" role="tab" aria-controls="pane-draft" aria-selected="true" class="tab active" data-tab="draft">初稿 <span id="draft-indicator">●</span></button><button id="tab-transcript" role="tab" aria-controls="pane-transcript" aria-selected="false" class="tab" data-tab="transcript">文字起こし <span id="transcript-indicator">●</span></button><button id="tab-rules" role="tab" aria-controls="pane-rules" aria-selected="false" class="tab" data-tab="rules">編集ルール <span id="rules-indicator">●</span></button></div>
+          <div class="tab-pane" id="pane-draft" role="tabpanel" aria-labelledby="tab-draft"><label class="sr-only" for="draft">初稿</label><textarea id="draft" placeholder="レビューする原稿を貼り付けてください。" maxlength="50000"></textarea><div class="editor-footer"><span>レビュー前の原稿</span><span id="draft-count">0文字</span></div></div>
+          <div class="tab-pane" id="pane-transcript" role="tabpanel" aria-labelledby="tab-transcript" hidden><label class="sr-only" for="transcript">取材の文字起こし</label><textarea id="transcript" placeholder="Plaud Noteなどで文字起こしした取材内容を貼り付けてください。" maxlength="50000"></textarea><div class="editor-footer"><span>話者・日時があると確認しやすくなります</span><span id="transcript-count">0文字</span></div></div>
+          <div class="tab-pane" id="pane-rules" role="tabpanel" aria-labelledby="tab-rules" hidden><label class="sr-only" for="rules">編集ルール</label><textarea id="rules" placeholder="媒体の編集ルールを入力してください。表記の指定例：表記：Web → ウェブ" maxlength="15000"></textarea><div class="editor-footer"><span>表記指定は「表記：変更前 → 変更後」</span><span id="rules-count">0文字</span></div></div>
+          <div id="review-team-status" class="review-team-status" hidden><span data-review-agent="facts">事実・引用：待機</span><span data-review-agent="style">表記・校正：待機</span><span data-review-agent="structure">構成：待機</span></div><div class="input-actions"><p id="mode-description">基本チェック：表記・数値・引用の一致を確認します。</p><button class="button primary" id="run-review"><span aria-hidden="true">✦</span> レビューを開始</button></div>
+        </div>
+        <aside class="review-guide">
+          <div class="guide-top"><span class="line-symbol" aria-hidden="true">[ ✓ ]</span><div class="eyebrow">REVIEW WITH EVIDENCE</div><h2>気になる一文に、<br>確かめられる根拠を。</h2><p>原稿を直す前に、取材内容とルールを確認。必要な修正だけを採用できます。</p></div>
+          <div class="guide-row"><span class="guide-number">01</span><div><h3>引用・数値を照合</h3><p>取材内容と一致しない箇所を、確認候補として表示。</p></div></div>
+          <div class="guide-row"><span class="guide-number">02</span><div><h3>媒体の表記を統一</h3><p>編集ルールに沿った表記の揺れをチェック。</p></div></div>
+          <div class="guide-row"><span class="guide-number">03</span><div><h3>編集者が修正を判断</h3><p>指摘と根拠を見比べて、採用・却下を選択。</p></div></div>
+          <div class="guide-note"><strong>3つの専門エージェントで確認</strong><p>OpenRouterに接続すると、事実・引用、表記・校正、構成を専門チームが並行して確認します。</p><button id="guide-settings" class="text-button">AI接続設定を開く</button></div>
+        </aside>
+      </section>
+      <section id="result-view" hidden>
+        <div class="result-toolbar"><div><h2 id="result-title">レビュー結果</h2><p id="result-info"></p></div><div class="toolbar-actions"><button class="button secondary" id="back-input">入力に戻る</button><button class="button primary" id="export-button">修正稿を書き出す</button></div></div>
+        <div class="stats"><div><span>確認候補</span><strong id="total-count">0</strong></div><div><span>未対応</span><strong id="pending-count">0</strong></div><div><span>採用済み</span><strong id="accepted-count">0</strong></div><div><span>経過時間</span><strong id="elapsed-time">0:00</strong></div></div>
+        <div class="review-grid"><div class="panel article-panel"><div class="panel-heading"><h3>原稿</h3><div class="segmented"><button id="show-original" class="selected">元の原稿</button><button id="show-revised">修正稿</button></div></div><div id="article-content" class="article-content"></div><div class="article-legend"><span class="legend-swatch"></span> 指摘箇所を選ぶと、右側に根拠を表示</div></div><div class="findings-panel"><div class="findings-top"><h3>確認リスト</h3><select id="filter" aria-label="指摘の絞り込み"><option value="all">すべて</option><option value="pending">未対応</option><option value="accepted">採用済み</option><option value="dismissed">却下済み</option></select></div><div id="findings-list"></div></div></div>
+      </section>
+      <footer class="page-footer"><span>ANGLE REVIEW</span><span>公開前の最終確認は、編集者が行ってください。</span></footer>
+    </main>
+  </div>
+  <dialog id="settings-dialog"><form id="settings-form"><div class="dialog-heading"><div><div class="eyebrow">OPENROUTER CONNECTION</div><h2>AI接続設定</h2></div><button type="button" class="close-button" data-close="settings-dialog" aria-label="閉じる">×</button></div><p>OpenRouter経由で専門エージェントを実行します。各工程でAPIを呼び出すため、利用料金はOpenRouterアカウントに発生します。</p><label>OpenRouter APIキー<input id="api-key" type="password" autocomplete="off" placeholder="sk-or-v1-…"></label><datalist id="model-options"><option value="openai/gpt-4.1-mini"></option><option value="google/gemini-2.5-flash"></option></datalist><label>標準モデル<input id="model" value="openai/gpt-4.1-mini" maxlength="120" pattern="[a-zA-Z0-9/._:-]+" list="model-options" required></label><label>レビュー専用モデル <span class="optional-label">空欄なら標準モデル</span><input id="reviewModel" maxlength="120" pattern="[a-zA-Z0-9/._:-]+" list="model-options" placeholder="例：google/gemini-2.5-flash"></label><label>調査専用モデル <span class="optional-label">空欄なら標準モデル</span><input id="researchModel" maxlength="120" pattern="[a-zA-Z0-9/._:-]+" list="model-options" placeholder="例：openai/gpt-4.1-mini"></label><div class="security-settings"><h3>情報管理</h3><label>資料の機密区分<select id="data-classification"><option value="internal">社内限定：個人情報をマスキング</option><option value="public">公開情報</option><option value="restricted">機密・外部送信禁止</option></select></label><label class="checkbox-label"><input id="redact-pii" type="checkbox" checked>メールアドレス・電話番号をマスキング</label><label>追加で隠す語句（1行に1つ）<textarea id="redact-terms" maxlength="5000" placeholder="非公開の人名、会社名、案件名など"></textarea></label><label class="checkbox-label"><input id="data-consent" type="checkbox">資料を外部AIへ送信できることを確認しました</label></div><div class="privacy-box">モデルの情報保持・学習利用を禁止する条件で接続し、条件を満たす提供元がなければ実行を停止します。マスキングは全ての個人情報を検出するものではありません。送信前に内容を確認してください。</div><div class="privacy-box">構造化出力に対応するモデルを指定してください。入力したキーはページを開いている間だけ保持し、サーバー経由でOpenRouterに接続します。資料は自動保存せず、リロードすると消えます。Web検索を有効にした場合は検索サービスも使用します。</div><div class="dialog-actions"><button type="button" class="button secondary" id="disconnect">接続を解除</button><button class="button primary" type="submit">設定を適用</button></div></form></dialog>
+  <dialog id="export-dialog"><div class="dialog-heading"><div><div class="eyebrow">READY FOR YOUR NEXT STEP</div><h2>修正稿を書き出す</h2></div><button class="close-button" data-close="export-dialog" aria-label="閉じる">×</button></div><p id="export-summary"></p><label>採用した修正を反映した原稿<textarea id="export-text" readonly></textarea></label><div id="export-status" role="status"></div><div class="export-options"><button class="button primary" id="copy-button">原稿をコピー</button><button class="button secondary" id="download-draft">原稿を保存 (.txt)</button><button class="button secondary" id="download-report">レビュー記録 (.json)</button></div></dialog>
+<dialog id="privacy-dialog"><div class="dialog-heading"><h2>AIへ送る資料の確認</h2><button class="close-button" data-close="privacy-dialog" aria-label="閉じる">×</button></div><p>マスキング後の制作ブリーフです。各工程では、関連する資料と前工程の成果物を引き継ぎます。</p><pre id="privacy-preview" class="privacy-preview"></pre></dialog>
+</body>
+</html>
