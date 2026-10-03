@@ -11,5 +11,11 @@ const worker=(await fs.readFile(new URL('../server/worker.mjs',import.meta.url),
 const specs=WORKFLOW_AGENTS.filter(a=>a.role!=='local').map(({id,role,instruction,schema})=>({id,role,instruction,schema}));
 await fs.mkdir(new URL('../dist/server/',import.meta.url),{recursive:true});
 await fs.writeFile(new URL('../dist/server/index.js',import.meta.url),security+'\n'+worker+`\nexport default createWorker(${JSON.stringify(assets)},${JSON.stringify(specs)});\n`);
-const path=new URL('../.openai/hosting.json',import.meta.url),manifest=JSON.parse(await fs.readFile(path,'utf8'));delete manifest.static;await fs.writeFile(path,JSON.stringify(manifest,null,2)+'\n');
+const path=new URL('../.openai/hosting.json',import.meta.url);
+try {
+  const manifest=JSON.parse(await fs.readFile(path,'utf8'));
+  delete manifest.static;
+  await fs.writeFile(path,JSON.stringify(manifest,null,2)+'\n');
+} catch(error) { if(error.code!=='ENOENT')throw error; }
+await fs.mkdir(new URL('../public/',import.meta.url),{recursive:true});
 console.log('Worker built with authenticated same-origin AI gateway and embedded static assets.');

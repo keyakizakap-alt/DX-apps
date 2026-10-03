@@ -14,7 +14,7 @@ export function configureAI(next) {
 export function aiConfigured() { return config.enabled&&(!!config.key||serverReady); }
 export function aiSettings() { return { model:config.model,reviewModel:config.reviewModel,researchModel:config.researchModel,classification:config.classification,redact:config.redact,terms:config.terms,consent:config.consent,serverReady }; }
 export function protectedInput(input){return protectData(input,config);}
-export async function discoverServer(){try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok)serverReady=!!(await r.json()).configured;}catch{}window.dispatchEvent(new Event('ai:configured'));}
+export async function discoverServer(){try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok){const status=await r.json();serverReady=!!status.configured;const logout=globalThis.document?.getElementById('logout-form');if(logout)logout.hidden=status.authentication!=='password';}}catch{}window.dispatchEvent(new Event('ai:configured'));}
 export function modelFor(role) { return (role==='review'?config.reviewModel:role==='research'?config.researchModel:'') || config.model; }
 export async function callAgent({ id, role='generation', instruction, input, schema, signal, web=false, maxTokens=4500 }) {
   if (!aiConfigured()) throw new Error('AI接続設定にOpenRouterのAPIキーを入力してください。');

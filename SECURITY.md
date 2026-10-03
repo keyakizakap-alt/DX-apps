@@ -2,6 +2,8 @@
 
 ## Trust boundaries
 
+On Vercel, `api/index.mjs` wraps the same Worker with `server/vercel-session.mjs`. All app assets and API calls are routed through this authenticated function; `public/` must remain empty apart from `.gitkeep`. Do not configure `dist/` as a publicly served output directory. A strong team access password and a separate random signing secret are mandatory; missing secrets or untrusted deployment origins fail closed. Login uses same-origin POST and issues a four-hour signed HttpOnly, Secure, SameSite=Strict cookie. No materials or API keys are stored in that cookie. Caller-provided Sites identity headers are overwritten only after session verification. This is single-owner/team authentication, not individual RBAC, SSO, or MFA. Login throttling is per instance; use Vercel Firewall for distributed controls. Logout deletes the browser cookie; rotating either access secret revokes all issued tokens, including copied tokens.
+
 Sites dispatch authenticates the visitor and supplies `oai-authenticated-user-id` and `oai-authenticated-user-email`. The Worker also requires the email to be in `ALLOWED_USER_EMAILS`. Do not deploy this Worker on a public origin that permits callers to supply those headers directly. Preserve the owner-private Sites audience. The development server supplies a synthetic identity and binds only to loopback; never expose it to the internet.
 
 All materials and generated output are untrusted. The API accepts only a fixed agent ID, allowlisted model, data object, and search boolean. System instructions and schemas are pinned server-side. The model has no mail, publishing, filesystem, GitHub, shell, or arbitrary HTTP tools. Web search is explicit, research-only, and restricted to public material.
@@ -16,7 +18,7 @@ All materials and generated output are untrusted. The API accepts only a fixed a
 - No-training and ZDR routing requirements; no relaxation after provider failure.
 - Literal citation and source-ID checks; output schema validation; supervisor intervention for unverifiable findings and unconfirmed claims.
 - Publication package approval is bound to artifact hashes. No connected external publication capability exists.
-- No material stored in server persistence, cookies, localStorage or IndexedDB. Cache-Control no-store. Explicit downloads are the user's responsibility.
+- No material stored in server persistence, cookies, localStorage or IndexedDB. Only the Vercel authentication token is stored in a cookie. Cache-Control no-store, including Vercel/CDN cache headers. Explicit downloads are the user's responsibility.
 
 ## Residual risks and operational requirements
 
@@ -26,7 +28,7 @@ The in-memory audit chain detects modification to a saved chain unless the entir
 
 ## Secrets and incident handling
 
-Configure `OPENROUTER_API_KEY` as a Sites secret, not as a source file. Restrict models with `ALLOWED_MODELS`. Rotate exposed keys immediately in OpenRouter, remove server/session credentials, inspect account usage, and review access. Do not put sensitive data into GitHub issues. Contact the repository owner privately for incident reports; no external security report is sent automatically by this application.
+Configure `OPENROUTER_API_KEY` as a hosting secret, not as a source file. Vercel also requires `APP_ACCESS_PASSWORD` and `SESSION_SECRET` as secrets. Restrict models with `ALLOWED_MODELS`. Rotate exposed keys immediately in OpenRouter, remove server/session credentials, inspect account usage, and review access. Do not put sensitive data into GitHub issues. Contact the repository owner privately for incident reports; no external security report is sent automatically by this application.
 
 ## Required verification before changes
 

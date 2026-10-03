@@ -20,7 +20,7 @@
     <div class="sidebar-bottom"><span class="small-label">YOUR EDITORIAL PARTNER</span><p>判断するのは、編集者。<br>その根拠を、見つけやすく。</p><button class="nav-item" id="settings-button"><span aria-hidden="true">⚙</span> AI接続設定</button><div class="connection-status" id="connection-status">基本チェックで利用中</div></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span>編集ワークスペース <span class="slash">/</span> <strong>原稿レビュー</strong></span><span class="private-label"><span aria-hidden="true">▣</span> 入力内容は自動保存されません</span></header>
+    <header class="topbar"><span>編集ワークスペース <span class="slash">/</span> <strong>原稿レビュー</strong></span><span class="private-label"><span aria-hidden="true">▣</span> 入力内容は自動保存されません</span><form id="logout-form" method="post" action="/api/logout" hidden><button type="submit" class="text-button">ログアウト</button></form></header>
     <main>
       <div class="page-heading"><div><div class="eyebrow">YOUR SPECIALIST EDITORIAL TEAM</div><h1>専門チームと、<br class="mobile-only">記事づくりを。</h1><p>企画から公開準備、振り返りまで。各工程を専門エージェントが分担。</p></div><button class="button secondary" id="load-sample">レビュー用サンプル</button></div>
       <ol class="steps" id="steps-review" aria-label="編集のステップ"><li class="current" id="step-input"><span>01</span> 原稿を準備</li><li id="step-review"><span>02</span> 根拠をレビュー</li><li id="step-export"><span>03</span> 修正稿を書き出す</li></ol>

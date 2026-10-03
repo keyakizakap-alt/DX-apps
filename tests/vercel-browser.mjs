@@ -1,0 +1,61 @@
+// Optional local browser check; requires Chromium, Playwright and OpenSSL.
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import https from 'node:https';
+import assert from 'node:assert/strict';
+import worker from '../dist/server/index.js';
+import { createVercelHandler } from '../server/vercel-session.mjs';
+const require = createRequire(import.meta.url);
+const { chromium } = require('/opt/codex/runtimes/cua/lib/node_modules/playwright-core');
+const temporary = await mkdtemp(join(tmpdir(), 'angle-vercel-test-'));
+const key = join(temporary, 'key.pem'), cert = join(temporary, 'cert.pem');
+execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=localhost'], { stdio: 'ignore' });
+const handle = createVercelHandler(worker);
+const env = { APP_ACCESS_PASSWORD: 'test-only-browser-password-20-characters', SESSION_SECRET: 'test-only-browser-signing-secret-32-characters' };
+const server = https.createServer({ key: await readFile(key), cert: await readFile(cert) }, async (incoming, outgoing) => {
+  try {
+    const chunks = [];
+    for await (const chunk of incoming) chunks.push(chunk);
+    const request = new Request(env.SITE_ORIGIN + incoming.url, { method: incoming.method, headers: incoming.headers, body: ['GET','HEAD'].includes(incoming.method) ? undefined : Buffer.concat(chunks) });
+    const response = await handle(request, env);
+    outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+    outgoing.end(Buffer.from(await response.arrayBuffer()));
+  } catch { outgoing.writeHead(500); outgoing.end(); }
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const origin = env.SITE_ORIGIN = `https://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
+const errors = [];
+
+try {
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(origin);
+  assert.equal(await page.locator('h1').textContent(), '制作チーム専用ログイン');
+  await page.locator('#password').fill('incorrect');
+  await page.getByRole('button', { name: 'ログイン', exact: true }).click();
+  await page.getByText('パスワードが一致しません。', { exact: true }).waitFor();
+  await page.locator('#password').fill(env.APP_ACCESS_PASSWORD);
+  await page.getByRole('button', { name: 'ログイン', exact: true }).click();
+  await page.locator('#nav-editor').waitFor();
+  await page.locator('#logout-form').waitFor({ state: 'visible' });
+  await page.locator('#nav-editor').click();
+  await page.locator('#run-review').click();
+  await page.locator('#result-view').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#total-count').textContent(), '4');
+  await page.getByRole('button', { name: 'ログアウト', exact: true }).click();
+  await page.locator('#password').waitFor();
+  const status = await page.request.get(origin + '/api/status');
+  assert.equal(status.status(), 401);
+  assert.deepEqual(errors, []);
+  console.log('Vercel HTTPS login → app → review → logout: passed');
+} finally {
+  await browser.close();
+  server.closeAllConnections();
+  await new Promise(resolve => server.close(resolve));
+  await rm(temporary, { recursive: true, force: true });
+}
