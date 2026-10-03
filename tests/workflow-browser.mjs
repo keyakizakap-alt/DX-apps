@@ -66,10 +66,10 @@ promise=page.waitForEvent('download');await page.locator('#workflow-bundle').cli
 const record=JSON.parse(await fs.readFile(await download.path(),'utf8'));
 assert.equal(record.status,'awaiting_metrics');assert.ok(record.approvals.publication);assert.ok(record.audit.length>20);
 assert.ok(!JSON.stringify(record).includes('sk-or-v1-local-dummy'));assert.ok(!JSON.stringify(record).includes('sample@example.com'));
-await page.locator('#brief-details > summary').click();await page.locator('#wf-metrics').fill('PV1000、問い合わせ2件。計測期間は公開後7日。');await page.locator('#workflow-run').click();
+await page.locator('#brief-details > summary').click();await page.locator('#metrics-details > summary').click();await page.locator('#wf-metrics').fill('PV1000、問い合わせ2件。計測期間は公開後7日。');await page.locator('#workflow-run').click();
 await page.waitForFunction(()=>document.getElementById('workflow-phase').textContent==='完了');
 assert.equal(calls,16);
-await page.locator('[data-agent="analytics"]').click();
+await page.locator('[data-progress-agent="archive"]').click();await page.locator('[data-agent="analytics"]').click();
 await page.screenshot({path:'/tmp/angle-workflow-results.png',fullPage:true});
 await page.locator('#workflow-review').click();await page.locator('#result-view').waitFor({state:'visible'});
 assert.ok((await page.locator('#article-content').textContent()).includes(article));

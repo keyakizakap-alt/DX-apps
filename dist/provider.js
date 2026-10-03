@@ -30,13 +30,13 @@ export async function callAgent({ id, role='generation', instruction, input, sch
   try {
     response=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json','X-Data-Classification':config.classification,'X-Data-Consent':config.consent?'confirmed':'','X-Redact-Pii':config.redact?'true':'false'},body:JSON.stringify(body),signal:controller.signal});
     if(!response.ok){
-      const messages={400:'入力内容を確認してください。改善しない場合は運営者にお問い合わせください。',401:'AIの接続設定を運営者に確認してください。',402:'AIの利用枠を運営者に確認してください。',403:'アクセス権限・機密区分・送信同意を確認してください。',404:'指定したモデルが見つかりません。',408:'応答が時間内に届きませんでした。',413:'資料が大きすぎます。',422:'資料内の認証情報・個人情報、または根拠を確認してください。',429:'利用上限、または混雑状況を確認してください。',502:'モデルの提供元でエラーが発生しました。',503:'情報管理条件を満たすモデルの提供元がありません。'};
-      throw new Error(`AIで実行できませんでした。${messages[response.status]||'しばらくしてから再開してください。'}（${response.status}）`);
+      const messages={400:'入力内容を確認してください。改善しない場合は運営者にお問い合わせください。',401:'AIの接続設定を運営者に確認してください。',402:'AIの利用枠を運営者に確認してください。',403:'アクセス権限・機密区分・送信同意を確認してください。',404:'記事の作成を利用できません。時間をおいてお試しください。',408:'応答が時間内に届きませんでした。',413:'資料が大きすぎます。',422:'資料内の認証情報・個人情報、または根拠を確認してください。',429:'利用上限、または混雑状況を確認してください。',502:'応答が届きませんでした。時間をおいて再開してください。',503:'資料の取り扱い条件を満たす接続先を現在利用できません。'};
+      throw new Error(`作業を完了できませんでした。${messages[response.status]||'しばらくしてから再開してください。'}`);
     }
     const data=await response.json();
-    if(data.error)throw new Error('モデルの提供元がエラーを返しました。別のモデルで再開できます。');
+    if(data.error)throw new Error('応答を受け取れませんでした。時間をおいて再開してください。');
     const choice=data.choices?.[0];
-    if(!choice||choice.finish_reason==='length')throw new Error('AIの出力が途中で終了しました。入力を短くするか、別のモデルで再開してください。');
+    if(!choice||choice.finish_reason==='length')throw new Error('AIの出力が途中で終了しました。必要な資料に絞って、続きから再開してください。');
     const raw=choice.message?.content;
     let output;
     try{output=JSON.parse(typeof raw==='string'?raw:'');}catch{throw new Error('AIの結果形式を読み取れませんでした。完了済みの作業は保持しています。');}

@@ -3,6 +3,7 @@ import { configureAI,aiConfigured,aiSettings,protectedInput,discoverServer } fro
 import { runReviewTeam,applyEditorialRevision } from './agents.js';
 import { initWorkflow,showWorkflow } from './workflow.js';
 import { initDashboard } from './dashboard.js';
+import { initTransfers } from './transfers.js';
 const $ = id => document.getElementById(id);
 let state = { findings: [], original: '', title: '', transcript: '', rules: '', selected: '', revised: false, started: 0, isSample: true, mode: 'basic', busy: false };
 let timer;
@@ -34,9 +35,9 @@ function showInput(confirmLoss = true) {
 }
 function updateConnection() {
   const connected = aiConfigured();
-  $('connection-status').textContent = connected ? 'AIを利用中' : '基本チェックで利用中';
-  $('mode-description').textContent = connected ? '事実・引用、表記・校正、構成の3エージェントで照合します。' : '基本チェック：表記・数値・引用の一致を確認します。';
-  $('run-review').innerHTML = '<span aria-hidden="true">✦</span> ' + (connected ? '専門チームでレビュー' : 'レビューを開始');
+  $('connection-status').textContent = connected ? '記事の作成・校正を利用中' : '表記・数値チェック';
+  $('mode-description').textContent = connected ? '引用・数値、表記、記事の構成をまとめて確認します。' : '表記・数値・引用を資料と照合します。';
+  $('run-review').innerHTML = '<span aria-hidden="true">✦</span> ' + (connected ? '原稿を確認する' : 'レビューを開始');
   window.dispatchEvent(new Event('ai:configured'));
 }
 async function reviewWithAI(draft, transcript, rules) {
@@ -57,7 +58,7 @@ async function runReview() {
   try{if(aiConfigured())({draft,transcript,rules}=protectedInput({draft,transcript,rules}));}catch(e){notify(e.message,true);return;}
   state.busy = true; $('run-review').disabled = true; $('load-sample').disabled = true; $('sample-nav').disabled = true;
   ['draft','transcript','rules','article-title','media'].forEach(k => $(k).disabled = true);
-  $('run-review').textContent = aiConfigured() ? '専門チームで照合しています…' : '照合しています…';
+  $('run-review').textContent = aiConfigured() ? '制作サポートで照合しています…' : '照合しています…';
   const started = Date.now();
   try {
     let findings, rejected = 0, failures=[];
@@ -66,7 +67,7 @@ async function runReview() {
     state = { ...state, findings, original:draft, title:$('article-title').value.trim() || '無題の記事', transcript, rules, selected:findings[0]?.id || '', revised:false, started, mode:aiConfigured()?'ai':'basic',workflowRun:null };
     $('filter').value = 'all'; $('input-view').hidden = true; $('result-view').hidden = false; setStep('review'); render();
     clearInterval(timer); timer = setInterval(updateElapsed, 1000); updateElapsed();
-    if(failures.length)notify(`一部のエージェントが完了していません。結果は部分的なものです。${failures[0]}`,true);
+    if(failures.length)notify(`一部の確認が終わっていません。完了した確認のみ表示しています。${failures[0]}`,true);
     else if (rejected) notify(`${rejected}件の指摘は根拠や原稿の引用を検証できなかったため表示していません。表示件数が少なくても確認済みとは限りません。`);
     else if (!aiConfigured()) notify('基本チェックの結果です。文意のずれや事実の正誤は判定していません。数値・引用の指摘は確認候補です。');
     window.scrollTo({top:0, behavior:'smooth'});
@@ -98,7 +99,7 @@ function renderFindings() {
   const filter = $('filter').value;
   const findings = state.findings.filter(f => filter === 'all' || f.status === filter);
   if (!findings.length) {
-    $('findings-list').innerHTML = `<div class="empty-findings"><h3>${state.findings.length ? 'この条件の指摘はありません':'確認候補は見つかりませんでした'}</h3><p>${state.findings.length ? '絞り込みを変更して、ほかの指摘を確認できます。':'原稿の正確性を保証する結果ではありません。取材の意味と事実は編集者が最終確認してください。'}</p></div>`; return;
+    $('findings-list').innerHTML = `<div class="empty-findings"><h3>${state.findings.length ? 'この条件の指摘はありません':'確認候補は見つかりませんでした'}</h3><p>${state.findings.length ? '絞り込みを変更して、ほかの指摘を確認できます。':'引用・数値・取材の意図を、公開前に編集者が最終確認してください。'}</p></div>`; return;
   }
   $('findings-list').innerHTML = findings.map((f) => {
     const status = {pending:'未対応',accepted:'採用済み',dismissed:'却下済み'}[f.status];
@@ -108,7 +109,7 @@ function renderFindings() {
 }
 function render() {
   $('result-title').textContent = state.title;
-  $('result-info').textContent = `${state.mode==='ai'?'AIレビュー':'基本チェック'} · ${state.original.length.toLocaleString()}文字${state.isSample?' · 架空のサンプル':''}`;
+  $('result-info').textContent = `${state.mode==='ai'?'原稿の校正':'基本チェック'} · ${state.original.length.toLocaleString()}文字${state.isSample?' · 架空のサンプル':''}`;
   $('total-count').textContent = state.findings.length;
   $('pending-count').textContent = state.findings.filter(f=>f.status==='pending').length;
   $('accepted-count').textContent = state.findings.filter(f=>f.status==='accepted').length;
@@ -172,10 +173,11 @@ initWorkflow({openReview:run=>{
   if(!final)return;
   $('draft').value=final.article;$('transcript').value=run.input.transcript;$('rules').value=[run.input.rules,`読者：${run.input.audience}`,`目的：${run.input.goal}`].join('\n');$('article-title').value=final.title;$('media').value=run.input.media;
   state={...state,findings:(run.finalFindings||[]).map(f=>({...f})),original:final.article,title:final.title,transcript:run.input.transcript,rules:$('rules').value,selected:run.finalFindings?.[0]?.id||'',revised:false,started:Date.now(),isSample:false,mode:'ai',workflowRun:run};
-  showInput(false);updateInputs();$('input-view').hidden=true;$('result-view').hidden=false;setStep('review');render();clearInterval(timer);timer=setInterval(updateElapsed,1000);notify('専門チームが作成した修正稿です。最終照合の指摘を確認して、公開前に編集者が承認してください。');
+  showInput(false);updateInputs();$('input-view').hidden=true;$('result-view').hidden=false;setStep('review');render();clearInterval(timer);timer=setInterval(updateElapsed,1000);notify('制作サポートが作成した修正稿です。最終照合の指摘を確認して、公開前に編集者が承認してください。');
 }});
 $('nav-workflow').addEventListener('click',()=>{if(state.busy)return;clearInterval(timer);hideNotice();showWorkflow();});
 initDashboard();
+initTransfers();
 discoverServer();
 window.addEventListener('data:clear',()=>{clearInterval(timer);state={...state,findings:[],original:'',title:'',transcript:'',rules:'',isSample:false,workflowRun:null};['draft','transcript','rules','article-title','export-text','redact-terms'].forEach(id=>$(id).value='');$('article-content').textContent='';$('findings-list').textContent='';configureAI({...aiSettings(),enabled:false,consent:false,terms:''});updateInputs();updateConnection();});
 

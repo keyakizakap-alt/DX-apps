@@ -3,20 +3,21 @@ import {WORKFLOW_AGENTS} from './agents.js';
 import {aiSettings,aiConfigured} from './provider.js';
 import {nextAction,attentionItems} from './supervisor.js';
 import {createNotificationCenter} from './notifications.js';
+import {productionProgress} from './progress.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const phaseLabels={ready:'準備中',running:'進行中',awaiting_review:'確認待ち',awaiting_transcript:'取材待ち',awaiting_metrics:'公開準備完了',completed:'制作完了',cancelled:'停止中',failed:'要対応',budget_exceeded:'処理上限'};
 const statusLabels={queued:'未着手',running:'進行中',done:'完了',awaiting:'入力待ち',failed:'要対応',cancelled:'停止'};
 let section='dashboard',deadline='',notes='',query='',center,notifications=[],desktopEnabled=false;
 const notificationsOpen=new Set();
-const names={dashboard:'ダッシュボード',workflow:'記事プロジェクト',tasks:'マイタスク',calendar:'カレンダー',knowledge:'ナレッジ',templates:'テンプレート',team:'エージェントチーム',editor:'原稿レビュー'};
+const names={dashboard:'ダッシュボード',workflow:'記事プロジェクト',tasks:'マイタスク',calendar:'カレンダー',knowledge:'ナレッジ',templates:'テンプレート',team:'制作工程',editor:'原稿レビュー'};
 function navigate(name){
   section=name;window.scrollTo({top:0,behavior:'instant'});
   $('dashboard-view').hidden=name!=='dashboard';$('section-view').hidden=['dashboard','workflow','editor'].includes(name);
   if(!['workflow','editor'].includes(name))['workflow-view','input-view','result-view','steps-review'].forEach(id=>$(id).hidden=true);
   document.querySelectorAll('.sidebar>.nav-item').forEach(b=>b.classList.toggle('active',b.id==='nav-'+name));
   $('page-title').textContent=names[name]||'記事制作';
-  $('page-description').textContent=name==='dashboard'?'企画から振り返りまで。専門チームの仕事を、ひと目で。':'現在の制作セッションを管理します。資料は自動保存されません。';
+  $('page-description').textContent=name==='dashboard'?'企画から振り返りまで。制作サポートの仕事を、ひと目で。':'記事の進み具合と、必要な作業を確認できます。';
   if(name==='dashboard')render();
   else if(!['workflow','editor'].includes(name))renderSection();
 }
@@ -24,7 +25,7 @@ function openAction(action){
   showWorkflow();
   if(action==='publication'&& !$('workflow-approve-publication').disabled){$('workflow-approve-publication').click();return;}
   if(action==='risk'){$('approval-panel').scrollIntoView({behavior:'smooth',block:'center'});$('approval-reason').focus();return;}
-  if(['brief','transcript','metrics'].includes(action)){$('brief-details').open=true;const id={brief:'wf-topic',transcript:'wf-transcript',metrics:'wf-metrics'}[action];$(id).scrollIntoView({behavior:'smooth',block:'center'});$(id).focus();return;}
+  if(['brief','transcript','metrics'].includes(action)){$('brief-details').open=true;if(action==='transcript')$('materials-details').open=true;if(action==='metrics')$('metrics-details').open=true;const id={brief:'wf-topic',transcript:'wf-transcript',metrics:'wf-metrics'}[action];$(id).scrollIntoView({behavior:'smooth',block:'center'});$(id).focus();return;}
   const {run}=workflowSnapshot();const agent=run?.agents.find(a=>a.status===(action==='running'?'running':'failed'));
   if(agent)openAgent(agent.id);
 }
@@ -54,30 +55,31 @@ async function enableNotifications(){
 }
 function agentRows(run,filter=''){
   return WORKFLOW_AGENTS.filter(a=>(a.name+a.description+a.group).includes(filter)).map(a=>{
-    const state=run?.agents.find(s=>s.id===a.id);return `<button class="task-row" data-open-agent="${a.id}"><span class="agent-avatar ${state?.status==='done'?'mint':'violet'}">${esc(a.group.slice(0,1))}</span><span><strong>${esc(a.name)}</strong><small>${esc(a.description)}</small></span><span class="pill ${state?.status==='done'?'mint':'lavender'}">${statusLabels[state?.status||'queued']}</span></button>`;
+    const state=run?.agents.find(s=>s.id===a.id);return `<button class="task-row" data-open-agent="${a.id}"><span class="agent-avatar ${state?.status==='done'?'mint':'violet'}">${esc(a.group.slice(0,1))}</span><span><strong>${esc(a.name.replace('エージェント',''))}</strong><small>${esc(a.description)}</small></span><span class="pill ${state?.status==='done'?'mint':'lavender'}">${statusLabels[state?.status||'queued']}</span></button>`;
   }).join('')||'<p class="empty-text">一致する工程はありません。</p>';
 }
 function renderSection(){
   const {run,input}=workflowSnapshot(),items=attentionItems(run),content=$('section-content');
-  if(section==='team')content.innerHTML=`<h2>17の専門工程が、成果物を引き継ぐ</h2><p class="card-note">事実・表記・構成は並行して照合。通常は自動で進み、取材資料・確認判断・実績が必要になったら止まります。</p><div class="task-list">${agentRows(run,query)}</div>`;
-  if(section==='tasks')content.innerHTML=`<h2>今、対応すること</h2><p class="card-note">制作の状態に応じて更新される、編集者のタスクです。</p>${items.length?items.map(i=>`<button class="task-row" data-action-open="${i.action}"><span class="agent-avatar pink">!</span><span><strong>${esc(i.title)}</strong><small>${esc(i.description)}</small></span><span>›</span></button>`).join(''):'<p class="empty-text">対応待ちの項目はありません。制作ブリーフから新しい企画を始められます。</p>'}<h3>工程を探す</h3><div class="task-list">${agentRows(run,query)}</div>`;
-  if(section==='calendar')content.innerHTML=`<h2>公開予定</h2><p class="card-note">予定はこのページで管理します。公開やSNS投稿は自動実行しません。</p><label>公開予定日<input type="date" id="calendar-deadline" value="${esc(deadline)}"></label><div class="calendar-entry"><span class="pill lavender">${deadline?esc(deadline):'日付未設定'}</span><h3>${esc(input.topic||'新しい記事')}</h3><p>${esc(phaseLabels[run?.status]||'準備中')}</p><button class="button secondary" data-open="brief">制作ブリーフを開く</button></div>`;
-  if(section==='knowledge')content.innerHTML=`<h2>編集ナレッジ</h2><p class="card-note">資料やルールは制作ブリーフにまとめます。下のメモはAIへ送信しません。閉じる前に必要な内容をお手元に保存してください。</p><label>編集部のメモ<textarea id="knowledge-note" maxlength="10000" placeholder="媒体の知見、確認したいこと、次の記事へのメモ">${esc(notes)}</textarea></label><button class="button secondary" data-open="brief">制作ブリーフの編集ルールへ</button><h3>この制作で追加確認すること</h3><ul>${(run?.agents.find(a=>a.id==='research')?.output?.gaps||[]).map(g=>`<li>${esc(g)}</li>`).join('')||'<li>調査結果ができると、確認事項を表示します。</li>'}</ul>`;
-  if(section==='templates')content.innerHTML='<h2>記事の目的から始める</h2><p class="card-note">テーマや資料を上書きせず、未入力の読者・目的を補います。</p><div class="template-grid">'+[{id:'interview',title:'インタビュー記事',text:'発言の意図・条件を保ち、読者に知見を届ける。'},{id:'business',title:'業務改善の記事',text:'課題・取り組み・検証できる成果を整理する。'},{id:'owned',title:'オウンドメディア',text:'読者の悩みに答え、次の行動につなげる。'}].map(t=>`<button class="template-card" data-template="${t.id}"><span class="pill lavender">制作ブリーフ</span><h3>${t.title}</h3><p>${t.text}</p><strong>この型で準備する →</strong></button>`).join('')+'</div>';
+  if(section==='team')content.innerHTML=`<h2>記事の制作工程</h2><p class="card-note">事実・表記・構成は並行して照合。企画から順に進み、取材資料や原稿の確認が必要になったらお知らせします。</p><div class="task-list">${agentRows(run,query)}</div>`;
+  if(section==='tasks')content.innerHTML=`<h2>今、対応すること</h2><p class="card-note">制作の状態に応じて更新される、編集者のタスクです。</p>${items.length?items.map(i=>`<button class="task-row" data-action-open="${i.action}"><span class="agent-avatar pink">!</span><span><strong>${esc(i.title)}</strong><small>${esc(i.description)}</small></span><span>›</span></button>`).join(''):'<p class="empty-text">対応待ちの項目はありません。企画・取材資料から新しい企画を始められます。</p>'}<h3>工程を探す</h3><div class="task-list">${agentRows(run,query)}</div>`;
+  if(section==='calendar')content.innerHTML=`<h2>公開予定</h2><p class="card-note">予定はこのページで管理します。公開やSNS投稿は自動実行しません。</p><label>公開予定日<input type="date" id="calendar-deadline" value="${esc(deadline)}"></label><div class="calendar-entry"><span class="pill lavender">${deadline?esc(deadline):'日付未設定'}</span><h3>${esc(input.topic||'新しい記事')}</h3><p>${esc(phaseLabels[run?.status]||'準備中')}</p><button class="button secondary" data-open="brief">企画・取材資料を開く</button></div>`;
+  if(section==='knowledge')content.innerHTML=`<h2>編集ナレッジ</h2><p class="card-note">資料やルールは企画・取材資料にまとめます。下のメモはAIへ送信しません。閉じる前に必要な内容をお手元に保存してください。</p><label>編集部のメモ<textarea id="knowledge-note" maxlength="10000" placeholder="媒体の知見、確認したいこと、次の記事へのメモ">${esc(notes)}</textarea></label><button class="button secondary" data-open="brief">企画・取材資料の編集ルールへ</button><h3>この制作で追加確認すること</h3><ul>${(run?.agents.find(a=>a.id==='research')?.output?.gaps||[]).map(g=>`<li>${esc(g)}</li>`).join('')||'<li>調査結果ができると、確認事項を表示します。</li>'}</ul>`;
+  if(section==='templates')content.innerHTML='<h2>記事の目的から始める</h2><p class="card-note">テーマや資料を上書きせず、未入力の読者・目的を補います。</p><div class="template-grid">'+[{id:'interview',title:'インタビュー記事',text:'発言の意図・条件を保ち、読者に知見を届ける。'},{id:'business',title:'業務改善の記事',text:'課題・取り組み・検証できる成果を整理する。'},{id:'owned',title:'オウンドメディア',text:'読者の悩みに答え、次の行動につなげる。'}].map(t=>`<button class="template-card" data-template="${t.id}"><span class="pill lavender">企画・取材資料</span><h3>${t.title}</h3><p>${t.text}</p><strong>この型で準備する →</strong></button>`).join('')+'</div>';
 }
 function render(){
   const {run,input}=workflowSnapshot();const agents=run?.agents||[],done=agents.filter(a=>a.status==='done').length,running=agents.filter(a=>a.status==='running').length;
   const phase=phaseLabels[run?.status]||'準備中',items=attentionItems(run),settings=aiSettings();
   $('dashboard-title').textContent=input.topic||'次の記事を、ここから。';$('dashboard-phase').textContent=phase;
-  $('dashboard-subtitle').textContent=input.goal||'テーマ・読者・目的を共有すると、17の専門工程が動き出します。';
-  $('article-preview-title').textContent=input.topic||'まだ企画がありません';$('article-preview-audience').textContent=input.audience||'最初の制作ブリーフを作成しましょう';
+  $('dashboard-subtitle').textContent=input.goal||'テーマ・読者・目的を共有すると、企画から公開準備まで進めます。';
+  $('article-preview-title').textContent=input.topic||'まだ企画がありません';$('article-preview-audience').textContent=input.audience||'企画の情報を入力しましょう';
   $('dashboard-media').textContent=input.media;$('dashboard-state').textContent=phase;$('dashboard-length').textContent=(input.targetLength||1500).toLocaleString()+'文字';
   $('dashboard-classification').textContent={internal:'社内限定・マスキング',public:'公開情報',restricted:'外部送信禁止'}[settings.classification];
   $('progress-count').innerHTML=`${done}<span>/ 17</span>`;$('progress-ring').setAttribute('stroke-dasharray',`${done/17*409} 409`);
   $('legend-done').textContent=done;$('legend-running').textContent=running;$('legend-waiting').textContent=17-done-running;
   $('production-done').textContent=done;$('production-pending').textContent=17-done;
   const groups=[...new Set(WORKFLOW_AGENTS.map(a=>a.group))];
-  $('stage-timeline').innerHTML=groups.map((g,i)=>{const ids=WORKFLOW_AGENTS.filter(a=>a.group===g).map(a=>a.id),count=agents.filter(a=>ids.includes(a.id)&&a.status==='done').length,active=agents.some(a=>ids.includes(a.id)&&['running','awaiting','failed'].includes(a.status));return `<button class="stage ${count===ids.length?'done':active?'current':''}" data-open-agent="${ids[0]}"><span class="stage-group group-${i}">${g}</span><span class="stage-number">${count===ids.length?'✓':i+1}</span><small>${count} / ${ids.length}工程</small></button>`;}).join('');
+  const progress=productionProgress(run);
+  $('stage-timeline').innerHTML=progress.stages.map((stage,index)=>`<button class="stage ${stage.state}" data-open-agent="${stage.firstAgent}"><span class="stage-group group-${index}">${stage.group}</span><span class="stage-number">${stage.state==='done'?'✓':index+1}</span><small>${stage.label}</small></button>`).join('');
   $('production-bars').innerHTML=groups.map(g=>{const ids=WORKFLOW_AGENTS.filter(a=>a.group===g).map(a=>a.id),n=agents.filter(a=>ids.includes(a.id)&&a.status==='done').length;return `<div><svg viewBox="0 0 32 80" aria-label="${g} ${n}/${ids.length}工程完了"><rect x="5" y="4" width="22" height="72" rx="2" fill="#f2edf6"/><rect x="5" y="${76-n/ids.length*72}" width="22" height="${n/ids.length*72}" rx="2" fill="#ec8da3"/></svg><small>${g}</small></div>`;}).join('');
   const next=nextAction(run);$('next-action-title').textContent=next.title;$('next-action-reason').textContent=next.reason;$('next-action-button').textContent=next.label;
   $('approval-count').textContent=items.length+'件';$('dashboard-approvals').innerHTML=items.length?items.map(i=>`<button class="approval-item" data-action-open="${i.action}"><span class="approval-icon">!</span><span><strong>${esc(i.title)}</strong><small>${esc(i.description)}</small></span><span class="pill pink">対応待ち</span></button>`).join(''):'<p class="empty-text">今は対応待ちの項目はありません。</p>';$('dashboard-approval-open').disabled=!items.length;
@@ -88,7 +90,7 @@ function render(){
   }).join('');
   const recent=(run?.audit||[]).filter(e=>['agent_completed','agent_interrupted','supervisor_required','supervisor_risk_approved','publication_package_approved'].includes(e.event)).slice(-4).reverse();
   $('dashboard-activity').innerHTML=recent.length?recent.map(e=>{const agent=WORKFLOW_AGENTS.find(a=>a.id===e.detail?.agent);return `<div class="activity-row"><span class="activity-icon ${e.event.includes('approved')?'mint':'lavender'}">${e.event==='agent_completed'?'✓':'·'}</span><div><strong>${esc(agent?.name||'編集者の確認')}</strong><p>${esc({agent_completed:'成果物を作成しました',agent_interrupted:'工程を停止しました',supervisor_required:'人の確認を待っています',supervisor_risk_approved:'判断を記録して再開しました',publication_package_approved:'公開用データを承認しました'}[e.event])}</p></div><small>${new Date(e.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</small></div>`;}).join(''):'<p class="empty-text">制作を開始すると、チームの動きがここに届きます。</p>';
-  $('dashboard-team').innerHTML=WORKFLOW_AGENTS.filter(a=>['research','writing','final_check'].includes(a.id)).map(a=>`<button class="team-row" data-open-agent="${a.id}"><span class="agent-avatar lavender">${a.group.slice(0,1)}</span><span><strong>${a.name}</strong><small>${statusLabels[agents.find(s=>s.id===a.id)?.status||'queued']}</small></span></button>`).join('');
+  $('dashboard-team').innerHTML=WORKFLOW_AGENTS.filter(a=>['research','writing','final_check'].includes(a.id)).map(a=>`<button class="team-row" data-open-agent="${a.id}"><span class="agent-avatar lavender">${a.group.slice(0,1)}</span><span><strong>${a.name.replace('エージェント','')}</strong><small>${statusLabels[agents.find(s=>s.id===a.id)?.status||'queued']}</small></span></button>`).join('');
   center.update(run);
   if(!['dashboard','workflow','editor'].includes(section))renderSection();
 }
