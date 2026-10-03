@@ -16,7 +16,7 @@ try{
  await page.locator('#dashboard-search').fill('取材');assert.ok(await page.locator('#section-content .task-row').count()<17);
  await page.locator('#nav-dashboard').click();await page.locator('#notification-bell').click();assert.ok((await page.locator('#notification-list').textContent()).includes('通知はまだ'));await page.locator('[data-close="notification-dialog"]').click();
  for(const width of [390,768,1024,1448]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`dashboard overflow at ${width}`);}
- await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/angle-dashboard-mobile.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.sidebar')).position),'fixed');assert.equal(await page.evaluate(()=>Math.round(document.querySelector('.sidebar').getBoundingClientRect().top)),65);await page.screenshot({path:'/tmp/angle-dashboard-mobile.png',fullPage:true});
  assert.equal(await page.evaluate(()=>localStorage.length),0);assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);
  console.log('Dashboard checks passed: state, safe rendering, templates, tasks/search, calendar, notes, notifications and four responsive widths.');
 }finally{await browser.close();}
