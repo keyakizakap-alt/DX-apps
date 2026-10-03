@@ -6,6 +6,9 @@
   "functions": {
     "api/index.mjs": { "maxDuration": 120 }
   },
+  "redirects": [
+    { "source": "/", "destination": "/index.html", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/:path*", "destination": "/api/index" }
   ]
