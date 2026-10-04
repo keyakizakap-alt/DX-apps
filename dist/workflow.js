@@ -44,7 +44,7 @@ async function startProduction(target){
   if(run?.status==='budget_exceeded'){status(run.error,true);return;}
   const raw=readInput(),missing=[['topic','企画テーマ'],['audience','想定読者'],['goal','記事の目的']].filter(([key])=>!raw[key]);
   if(missing.length){status(`${missing.map(([,label])=>label).join('・')}を入力してください。入力後、制作を開始できます。`);$('brief-details').open=true;$('wf-'+missing[0][0]).focus();return;}
-  if(!demoMode){status('制作の接続を確認しています。');render();await discoverServer();}
+  if(!demoMode){status('制作を利用できるか確認しています。');render();await discoverServer();}
   if(!demoMode&&!aiSettings().serverReady){status(connectionMessage());$('workflow-reconnect').hidden=false;return;}
   if(!demoMode&&(!aiConfigured()||!aiSettings().consent)){pendingTarget=target;status('資料の取り扱いを確認すると、選択した制作を開始します。');$('workflow-settings').click();return;}
   let input;try{input=demoMode?{...raw,webSearch:false,editorialContext:null}:protectedInput(raw);}catch(e){status(e.message,true);return;}
@@ -85,7 +85,7 @@ function render(){
   $('project-progress-percent').textContent=progress.percent+'%';
   $('project-progress-bar').value=progress.completed;
   $('project-stages').innerHTML=progress.stages.map((stage,index)=>`<button class="project-stage ${stage.state}" data-progress-agent="${stage.firstAgent}"><span class="project-stage-index">${stage.state==='done'?'✓':index+1}</span><strong>${esc(stage.group)}</strong><span class="project-stage-label">${esc(stage.label)}</span><progress value="${stage.done}" max="${stage.total}" aria-label="${esc(stage.group)}の進み具合"></progress><small>${stage.done} / ${stage.total} 作業</small></button>`).join('');
-  $('workflow-phase').textContent=busy?'実行中':starting?'接続確認中':({task_completed:'作業完了',awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止',budget_exceeded:'処理上限'}[run?.status]||'待機中');
+  $('workflow-phase').textContent=busy?'実行中':starting?'準備を確認中':({task_completed:'作業完了',awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止',budget_exceeded:'処理上限'}[run?.status]||'待機中');
   $('workflow-run').disabled=busy||starting||run?.status==='budget_exceeded';
   $('workflow-run').textContent=run&&!['ready','completed'].includes(run.status)?'続きから再開':run?.status==='completed'?'新しい制作を開始':'記事の制作を始める';
   if(run?.status==='completed')$('workflow-run').textContent='完了した成果物を確認';
@@ -99,7 +99,7 @@ function render(){
   $('workflow-demo-metrics').disabled=busy||!run?.approvals?.publication;
   $('workflow-stop').hidden=!busy;$('workflow-sample').disabled=busy;
   inputIDs.forEach(id=>$('wf-'+id).disabled=busy||starting||demoMode);
-  $('workflow-connection').textContent=demoMode?'架空のデータで体験中（外部AIへの送信なし）':aiSettings().serverReady?(aiConfigured()?'資料の取り扱いを確認済み':'資料の取り扱いを確認してください'):'制作の接続を確認してください';
+  $('workflow-connection').textContent=demoMode?'架空のデータで体験中（外部AIへの送信なし）':aiSettings().serverReady?(aiConfigured()?'資料の取り扱いを確認済み':'資料の取り扱いを確認してください'):'制作を利用できるか確認してください';
   $('workflow-reconnect').disabled=busy||starting;
   $('workflow-action-hint').textContent=run?.status==='awaiting_transcript'?'文字起こしを追加して、執筆以降を再開できます。':run?.status==='awaiting_metrics'?'公開後の実績は企画・取材資料から追加できます。':'取材がまだでも、企画と取材準備から始められます。';
   let html='';
@@ -135,7 +135,7 @@ function renderArtifact(){
   let html='';
   if(out.summary)html+=`<div class="artifact-summary">${esc(out.summary)}</div>`;
   if(out.article)html+=`<h3>${esc(out.title)}</h3><div class="artifact-document">${esc(out.article)}</div>`;
-  if(out.content)html+=`<div class="artifact-document${selected==='archive'?' artifact-code':''}">${esc(out.content)}</div>`;
+  if(out.content){if(selected==='archive'){const draft=agentState(run,'rewrite').output;html+=`<p>入稿用ファイルを用意しました。内容を確認して保存できます。</p><h3>${esc(draft?.title||'原稿')}</h3><div class="artifact-document">${esc(draft?.article||'')}</div>`;}else html+=`<div class="artifact-document">${esc(out.content)}</div>`;}
   if(out.themes?.length)html+=`<h3>企画の切り口</h3><ul>${out.themes.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
   if(out.facts?.length)html+=`<h3>根拠を確認できた情報</h3>${out.facts.map(f=>`<div class="evidence"><strong>${esc(f.claim)}</strong><blockquote>${esc(f.evidence)}</blockquote><div class="source-context">${esc(f.source_id)}</div></div>`).join('')}`;
   if(out.gaps?.length)html+=`<h3>追加で確認すること</h3><ul>${out.gaps.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
@@ -156,7 +156,7 @@ export function initWorkflow(options={}){
   openReview=options.openReview||(()=>{});
   $('workflow-run').addEventListener('click',()=>void start());
   $('artifact-run').addEventListener('click',()=>void executeTask(selected));
-  $('workflow-reconnect').addEventListener('click',async()=>{if(busy||starting)return;starting=true;render();status('制作の接続を確認しています。');try{await discoverServer({verify:true});status(connectionMessage());}finally{starting=false;render();}});
+  $('workflow-reconnect').addEventListener('click',async()=>{if(busy||starting)return;starting=true;render();status('制作を利用できるか確認しています。');try{await discoverServer({verify:true});status(connectionMessage());}finally{starting=false;render();}});
   $('workflow-stop').addEventListener('click',()=>controller?.abort());
   $('workflow-preview').addEventListener('click',()=>{const settings=aiSettings(),input=readInput(),labels={topic:'企画テーマ',audience:'想定読者',goal:'記事の目的',media:'掲載媒体',targetLength:'文字数の目安',sources:'調査資料',rules:'編集ルール',transcript:'文字起こし',metrics:'公開後の実績'};let text=Object.entries(labels).map(([key,label])=>label+'\n'+(input[key]||'未入力')).join('\n\n');if(input.editorialContext)text+='\n\n参考記事（今回の事実根拠には使いません）\n'+input.editorialContext.references.map(r=>[r.title,r.date,r.url,[...r.industry,...r.themes].join(' / '),r.excerpt].join('\n')).join('\n\n')+'\n\n分類の名称\n'+input.editorialContext.categoryNames.join(' / ');$('privacy-preview').textContent=settings.redact?redactText(text,settings.terms):text;$('privacy-dialog').showModal();});
   $('workflow-clear').addEventListener('click',()=>{

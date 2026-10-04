@@ -120,7 +120,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',execu
       if(id==='archive'){
         const title=agentState(run,'rewrite').output?.title||agentState(run,'writing').output?.title||run.input.topic;
         const article=context().draft;
-        state.output={summary:'素材・原稿・根拠つき指摘・各エージェントの成果物をまとめました。',content:makeWordPressHTML(title,article),items:['全体の成果物はJSONで保存できます。','担当者が写真の掲載許可と原稿の内容を確認し、公開してください。']};
+        state.output={summary:'取材資料・原稿・校正結果をまとめました。',content:makeWordPressHTML(title,article),items:['「制作記録を保存」で、成果物をまとめて保存できます。','担当者が写真の掲載許可と原稿の内容を確認し、公開してください。']};
       }else{
         let payload=context();
         if(id==='research')payload={topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,sourceMaterial:segments(run.input.sources,'S'),editorialContext:run.input.editorialContext,webSearchEnabled:run.input.webSearch};

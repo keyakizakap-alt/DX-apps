@@ -3,12 +3,12 @@ import {containsSecret,audit} from './security.js';
 import {aiSettings} from './provider.js';
 import {createDocx} from './docx.js';
 export const TOOL_ADAPTERS=Object.freeze([
- {id:'word',name:'Word',kind:'file',label:'Wordファイルを保存',description:'編集できる原稿を.docx形式で保存します。',steps:'保存したファイルをWordで開き、編集・コメントできます。'},
+ {id:'word',name:'Word',kind:'file',label:'Wordファイルを保存',description:'Wordで編集できる原稿を保存します。',steps:'保存したファイルをWordで開き、編集・コメントできます。'},
  {id:'instagram',name:'Instagram',kind:'copy',platform:'Instagram',url:'https://www.instagram.com/',label:'キャプションをコピー',description:'確認済みのキャプションを投稿に使えます。',steps:'コピーした文案を投稿画面に貼り付け、画像と一緒に確認してください。'},
  {id:'youtube',name:'YouTube',kind:'copy',platform:'YouTube',url:'https://studio.youtube.com/',label:'タイトル・概要欄をコピー',description:'記事を紹介する動画のタイトル・概要欄の文案です。',steps:'YouTube Studioで動画を用意し、コピーした文案をタイトル・概要欄に貼り付けてください。'},
- {id:'canva',name:'Canva',kind:'file',url:'https://www.canva.com/',label:'デザイン用CSVを保存',description:'見出しとSNS文案をデザインの素材として渡せます。',steps:'Canvaの一括作成にCSVを読み込み、見出し・文案をデザインに割り当てます。画像・動画そのものは含みません。'},
+ {id:'canva',name:'Canva',kind:'file',url:'https://www.canva.com/',label:'デザイン用の文案を保存',description:'見出しとSNS文案をデザインの素材として渡せます。',steps:'Canvaの一括作成にCSVを読み込み、見出し・文案をデザインに割り当てます。画像・動画そのものは含みません。'},
  {id:'google-docs',name:'Google Docs',kind:'file',url:'https://docs.google.com/document/',label:'文書ファイルを保存',description:'チームで編集・コメントする原稿を渡せます。',steps:'保存したWordファイルをGoogle Driveにアップロードし、Google Docsで開いてください。'},
- {id:'wordpress',name:'WordPress',kind:'file',label:'入稿用HTMLを保存',description:'見出しと本文を入稿用ファイルにまとめます。',steps:'保存したHTMLを開き、WordPressのコードエディターへ内容を貼り付けて下書きを保存してください。'},
+ {id:'wordpress',name:'WordPress',kind:'file',label:'入稿用ファイルを保存',description:'見出しと本文を入稿用ファイルにまとめます。',steps:'保存したHTMLを開き、WordPressのコードエディターへ内容を貼り付けて下書きを保存してください。'},
  {id:'x',name:'X',kind:'copy',platform:'X',url:'https://x.com/compose/post',label:'投稿文をコピー',description:'確認済みの短い投稿文を渡せます。',steps:'投稿画面で貼り付け、記事URLを差し替えて確認してください。'},
  {id:'linkedin',name:'LinkedIn',kind:'copy',platform:'LinkedIn',url:'https://www.linkedin.com/feed/',label:'投稿文をコピー',description:'ビジネス向けの紹介文を渡せます。',steps:'投稿画面で貼り付け、記事URLを差し替えて確認してください。'}
 ]);
