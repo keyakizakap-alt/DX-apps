@@ -102,7 +102,7 @@ export function makeWordPressHTML(title,article) {
   const escape=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   return `<!-- WordPress下書き用。公開前に編集者が最終確認してください。 -->\n<h1>${escape(title)}</h1>\n`+article.split(/\n\s*\n/).filter(Boolean).map(p=>`<p>${escape(p).replace(/\n/g,'<br>')}</p>`).join('\n');
 }
-export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all'}={}) {
+export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',executeAgent=callAgent}={}) {
   taskPlan(target);run.requestedTask=target;
   const reached=group=>{if(target==='all'||!group.includes(target))return false;run.status='task_completed';onUpdate(run);return true;};
   const context=()=>{
@@ -114,7 +114,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all'}={}) 
     const state=agentState(run,id),agent=WORKFLOW_AGENTS.find(a=>a.id===id);
     if(state.status==='done')return;
     if(signal?.aborted){const error=new Error('実行を停止しました。');error.name='AbortError';throw error;}
-    state.status='running';state.error='';state.model=modelFor(agent.role);await audit(run,'agent_started',{agent:id,model:state.model});onUpdate(run);
+    state.status='running';state.error='';state.model=run.demo?'demo':modelFor(agent.role);await audit(run,'agent_started',{agent:id,model:state.model});onUpdate(run);
     const started=Date.now();
     try{
       if(id==='archive'){
@@ -125,7 +125,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all'}={}) 
         let payload=context();
         if(id==='research')payload={topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,sourceMaterial:segments(run.input.sources,'S'),editorialContext:run.input.editorialContext,webSearchEnabled:run.input.webSearch};
         if(run.attempts>=MAX_WORKFLOW_CALLS){const error=new Error('この制作のAI処理は48回を上限に停止しました。成果物を保存し、制作の範囲を見直してください。');error.name='ExecutionLimitError';throw error;}
-        run.attempts++;const response=await callAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:['writing','rewrite'].includes(id)?8000:4000});
+        run.attempts++;const response=await executeAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:['writing','rewrite'].includes(id)?8000:4000});
         run.usageRecords.push({agent:id,time:new Date().toISOString(),...response.usage});
         state.output=response.output;state.annotations=response.annotations;state.usage=response.usage;
         if(id==='titles'){
