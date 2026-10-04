@@ -81,6 +81,7 @@ export function validateAIFindings(items, draft, transcript, rules) {
     if(!source){reject('unknown_source');continue;}
     if (typeof item.evidence !== 'string' || !item.evidence || !source.text.includes(item.evidence)) { reject('evidence_mismatch'); continue; }
     if(['最大','最低','必ず','すべて','全て'].some(term=>item.suggestion.includes(term)&&!item.quote.includes(term)&&!source.text.includes(term))){reject('expanded_claim');continue;}
+    if(item.suggestion===item.quote)continue;
     if (findings.some(f => f.quote === item.quote && f.category === item.category)) continue;
     findings.push(bind({ category: item.category, title: item.title, explanation: item.explanation, quote: item.quote, suggestion: item.suggestion, evidence: item.evidence, sourceId: source.id, sourceType: source.id.startsWith('R') ? 'rule' : 'transcript', severity: item.severity, id: `ai-${findings.length}` }, draft));
   }

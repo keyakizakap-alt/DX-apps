@@ -41,3 +41,14 @@ test('server limits citation IDs and evidence to the masked task input, without 
  assert.deepEqual(props.source_id.enum,['T1','R1']);assert.equal(props.quote.enum,undefined);assert.equal(props.suggestion.enum,undefined);assert.deepEqual(props.evidence.enum,['連絡先は ［メールアドレス］。','Web → ウェブ']);assert.equal(payload.provider.zdr,true);assert.equal(JSON.stringify(payload).includes('a@example.test'),false);
  }finally{globalThis.fetch=previous;}
 });
+test('workflow avoids concurrent upstream reservations through preparation, review and handoff',async()=>{
+ const {createRun,runWorkflow}=await import('../dist/agents.js');let active=0,peak=0;
+ const run=createRun({topic:'確認方法',audience:'担当者',goal:'取り組みを伝える',targetLength:1000,media:'記事',transcript:'田中氏は確認項目を整理した。',sources:'',rules:'',metrics:'PV 100',webSearch:false});
+ await runWorkflow(run,{executeAgent:async({id})=>{
+  active++;peak=Math.max(peak,active);if(active>1)throw new Error('利用枠の予約が競合しました');
+  await new Promise(resolve=>setTimeout(resolve,2));active--;
+  const output=['facts','style','structure','final_check'].includes(id)?{findings:[]}:id==='writing'?{summary:'取材記事',title:'確認方法',article:'田中氏は確認項目を整理した。'}:id==='research'?{summary:'調査',themes:[],facts:[],gaps:[]}:id==='titles'?{summary:'見出し',titles:['確認方法'],headings:[],tags:[],categories:[]}:id==='social'?{summary:'投稿案',posts:[]}:{summary:'準備',content:'内容',items:[]};
+  return {output,annotations:[],usage:{}};
+ }});
+ assert.equal(peak,1);assert.equal(run.status,'completed');assert.equal(run.agents.every(s=>s.status==='done'),true);
+});

@@ -46,7 +46,7 @@ WORKFLOW_AGENTS.find(a=>a.id==='titles').instruction+='\neditorialContext.catego
 const reviewCategories={facts:['引用','数値','文意'],style:['表記','文体'],structure:['構成','文意']};
 for(const agent of [...REVIEW_AGENTS,...WORKFLOW_AGENTS.filter(a=>reviewCategories[a.id])]){
  const allowed=reviewCategories[agent.id];
- agent.instruction+='\n担当範囲は'+allowed.join('・')+'のみ。他の担当の仕事や好みによる指摘を追加しない。直接引用の口調は文体統一の対象にしない。編集ルールの対象（本文・見出し・直接引用）を守る。指摘は単一IDの原文に完全一致する根拠がある場合だけ。';
+ agent.instruction+='\n正しい箇所や問題のない箇所をfindingsに入れない。quoteとsuggestionが同じ指摘を出さない。suggestionにはquoteを置き換える部分だけを書き、quoteの前後にある文章を重複させない。担当範囲は'+allowed.join('・')+'のみ。他の担当の仕事や好みによる指摘を追加しない。直接引用の口調は文体統一の対象にしない。編集ルールの対象（本文・見出し・直接引用）を守る。指摘は単一IDの原文に完全一致する根拠がある場合だけ。';
  if(agent.schema){agent.schema=structuredClone(reviewSchema);agent.schema.properties.findings.items.properties.category.enum=allowed;}
 }
 WORKFLOW_AGENTS.find(a=>a.id==='writing').instruction+='\n最優先は入力transcriptとsourceMaterialの原文。構成案より一次資料を優先する。取材記事では、資料にある会社名・話者の氏名と役職・主要な発言・成果の数字・対象範囲・期間・例外条件を本文に具体的に残す。サンプルの架空企業もその名前のまま記事にする。原文にない一般論や抽象的な解説で取材内容を置き換えない。資料に答えがある事項を要確認にしない。直接引用は原文の連続文字列をコピーし、短縮・言い換えた文章を引用符で囲まない。数字を最大・最低・全体の値に拡大解釈しない。';
@@ -65,14 +65,14 @@ export function mergeReviewResults(results) {
 }
 
 export async function runReviewTeam({draft,transcript,rules,signal,onStatus=()=>{}}) {
-  const results=await Promise.allSettled(REVIEW_AGENTS.map(async agent=>{
+  const results=[];for(const agent of REVIEW_AGENTS){results.push(...await Promise.allSettled([(async()=>{
     onStatus(agent.id,'running');
     try{
       const response=await callAgent({id:agent.id,role:agent.role,instruction:agent.instruction,input:{draft,transcript:segments(transcript),rules:segments(rules,'R')},schema:reviewSchema,signal});
       const result=validateAIFindings(response.output.findings,draft,transcript,rules);
       onStatus(agent.id,'done');return {id:agent.id,result,usage:response.usage};
     }catch(e){onStatus(agent.id,e.name==='AbortError'?'cancelled':'failed',e.message);throw e;}
-  }));
+  })()]));}
   const succeeded=results.filter(r=>r.status==='fulfilled').map(r=>r.value);
   const failures=results.filter(r=>r.status==='rejected').map(r=>r.reason.message);
   if(!succeeded.length)throw new Error(failures[0]||'レビューを完了できませんでした。');
@@ -190,8 +190,8 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',execu
     }catch(e){state.status=e.name==='AbortError'?'cancelled':'failed';state.error=e.message;state.durationMs=Date.now()-started;await audit(run,'agent_interrupted',{agent:id,status:state.status});onUpdate(run);throw e;}
   };
   const group=async ids=>{
-    const results=await Promise.allSettled(ids.map(stage));
-    const error=results.find(r=>r.status==='rejected');if(error)throw error.reason;
+    // Keep upstream reservations bounded to one request per production.
+    for(const id of ids)await stage(id);
   };
   run.status='running';onUpdate(run);
   try{
@@ -199,7 +199,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',execu
     await stage('planning');if(reached(['planning']))return run;
     if(target==='coordination'){await stage('coordination');if(reached(['coordination']))return run;}
     if(target==='interview'){await stage('interview');if(reached(['interview']))return run;}
-    const preparation=await Promise.allSettled([stage('coordination'),stage('interview')]);
+    const preparation=[];for(const id of ['coordination','interview'])preparation.push(...await Promise.allSettled([stage(id)]));
     const requiredFailure=preparation[1].status==='rejected'?preparation[1].reason:null;
     const optionalFailure=preparation[0].status==='rejected'?preparation[0].reason:null;
     // A missing invitation draft does not invalidate research, interview material or the manuscript.
