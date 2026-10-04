@@ -31,7 +31,7 @@ export const WORKFLOW_AGENTS=[
   {id:'titles',name:'タイトル・見出し',role:'generation',group:'公開準備',description:'タイトル・見出し・タグ候補を提案',schema:titlesSchema,instruction:'原稿の根拠の範囲で、誇張しないタイトル候補3件、見出し、タグ・カテゴリの候補を作成。原稿や取材にない成果をタイトルに追加しない。'},
   {id:'visuals',name:'画像準備',role:'generation',group:'公開準備',description:'写真選定の条件・加工指示・代替テキストを提案',schema:documentSchema,instruction:'原稿に合う写真選定条件、素材を探すキーワード、掲載許諾の確認、トリミング・サイズの指示、画像が用意された際の代替テキストの案を作成。画像そのものは生成・取得・加工していないことを明示する。'},
   {id:'publishing',name:'入稿準備',role:'generation',group:'公開準備',description:'WordPress用の概要と公開前チェックを作成',schema:documentSchema,instruction:'原稿の概要、抜粋、タグ・カテゴリ設定の候補、引用・権利・未確認事項の公開前チェックリストを作成。WordPressへの登録や公開はしていない。'},
-  {id:'social',name:'SNS展開',role:'generation',group:'公開準備',description:'X・LinkedIn向け投稿の下書きを作成',schema:socialSchema,instruction:'取材根拠の範囲でXとLinkedIn向けの投稿案を作成。Xは本文と［記事URL］込みで140文字以内。URLが未確定なら［記事URL］とする。投稿予約や実際の投稿は行っていない。'},
+  {id:'social',name:'SNS展開',role:'generation',group:'公開準備',description:'X・LinkedIn向け投稿の下書きを作成',schema:socialSchema,instruction:'取材根拠の範囲でX、LinkedIn、Instagram、YouTube向けの投稿案を作成。Instagramはキャプション、YouTubeは「タイトル：」「概要欄：」で分けた動画紹介の文案をtextに記載する。InstagramとYouTubeは500文字以内。画像・動画の制作やアップロードを行ったとは書かない。Xは本文と［記事URL］込みで140文字以内。URLが未確定なら［記事URL］とする。投稿予約や実際の投稿は行っていない。'},
   {id:'archive',name:'アーカイブ',role:'local',group:'振り返り',description:'素材・原稿・指摘・成果物をひとつに整理'},
   {id:'analytics',name:'分析・振り返り',role:'generation',group:'振り返り',description:'実績数値から改善案を作成',schema:documentSchema,instruction:'入力された公開後のPV、問い合わせ、制作時間などの実績だけを分析し、改善仮説と次の実験を提案。実績がない値や因果関係を捏造しない。削減率は前後の実測がある場合に限る。'}
 ];

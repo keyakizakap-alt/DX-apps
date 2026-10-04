@@ -1,3 +1,4 @@
+import {renderIntegrations} from './integrations.js';
 import {workflowSnapshot,showWorkflow,openAgent,executeTask} from './workflow.js';
 import {findTasks,isProductionRequest} from './tasks.js';
 import {WORKFLOW_AGENTS} from './agents.js';
@@ -12,7 +13,7 @@ const phaseLabels={ready:'準備中',task_completed:'作業完了',running:'進�
 const statusLabels={queued:'未着手',running:'進行中',done:'完了',awaiting:'入力待ち',failed:'要対応',cancelled:'停止'};
 let section='dashboard',deadline='',notes='',query='',center,notifications=[],desktopEnabled=false;
 const notificationsOpen=new Set();
-const names={dashboard:'ダッシュボード',workflow:'記事プロジェクト',tasks:'マイタスク',calendar:'カレンダー',knowledge:'ナレッジ',templates:'テンプレート',team:'制作工程',editor:'原稿レビュー'};
+const names={dashboard:'ダッシュボード',workflow:'記事プロジェクト',tasks:'マイタスク',calendar:'カレンダー',knowledge:'ナレッジ',templates:'テンプレート',team:'制作工程',editor:'原稿レビュー',integrations:'外部ツール'};
 function navigate(name){
   section=name;window.scrollTo({top:0,behavior:'instant'});
   $('dashboard-view').hidden=name!=='dashboard';$('section-view').hidden=['dashboard','workflow','editor'].includes(name);
@@ -63,6 +64,7 @@ function agentRows(run,filter=''){
 }
 function renderSection(){
   const {run,input}=workflowSnapshot(),items=attentionItems(run),content=$('section-content');
+  if(section==='integrations')renderIntegrations(content,{...workflowSnapshot(),onApproval:()=>openAction('publication')});
   if(section==='team')content.innerHTML=`<h2>記事の制作工程</h2><p class="card-note">事実・表記・構成は並行して照合。企画から順に進み、取材資料や原稿の確認が必要になったらお知らせします。</p><div class="task-list">${agentRows(run,query)}</div>`;
   if(section==='tasks')content.innerHTML=`<h2>今、対応すること</h2><p class="card-note">制作の状態に応じて更新される、編集者のタスクです。</p><label class="task-search-label">進めたい作業を探す<input id="task-search" type="search" maxlength="200" value="${esc(query)}" placeholder="例：質問を作って、SNSの投稿案、記事の制作を始める"></label><div id="task-search-results">${taskResults(run,items)}</div>`;
   if(section==='calendar')content.innerHTML=`<h2>公開予定</h2><p class="card-note">予定はこのページで管理します。公開やSNS投稿は自動実行しません。</p><label>公開予定日<input type="date" id="calendar-deadline" value="${esc(deadline)}"></label><div class="calendar-entry"><span class="pill lavender">${deadline?esc(deadline):'日付未設定'}</span><h3>${esc(input.topic||'新しい記事')}</h3><p>${esc(phaseLabels[run?.status]||'準備中')}</p><button class="button secondary" data-open="brief">企画・取材資料を開く</button></div>`;
@@ -104,7 +106,7 @@ export function initDashboard(){
 
   center=createNotificationCenter({deliver:delivery,onChange:renderNotifications});
   window.addEventListener('workspace:navigate',e=>navigate(e.detail));
-  ['dashboard','tasks','calendar','knowledge','templates','team'].forEach(name=>$('nav-'+name).addEventListener('click',()=>navigate(name)));
+  ['dashboard','tasks','calendar','knowledge','templates','team','integrations'].forEach(name=>$('nav-'+name).addEventListener('click',()=>navigate(name)));
   $('nav-editor').addEventListener('click',()=>navigate('editor'));
   $('load-sample').addEventListener('click',()=>navigate('editor'));$('sample-nav').addEventListener('click',()=>navigate('editor'));
   document.addEventListener('click',e=>{
