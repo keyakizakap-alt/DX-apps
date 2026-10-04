@@ -5,7 +5,8 @@ const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless
 try{
  const page=await browser.newPage({viewport:{width:1448,height:1086}}),errors=[],csp=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.text().includes('Content Security Policy'))csp.push(m.text());});
- await page.goto('http://127.0.0.1:4173/');await page.locator('#dashboard-view').waitFor({state:'visible'});
+ await page.goto(process.env.APP_TEST_URL||'http://127.0.0.1:4173/');await page.locator('#dashboard-view').waitFor({state:'visible'});
+ const layout=await page.evaluate(()=>({rules:[...document.styleSheets].find(s=>s.href?.endsWith('/dashboard.css'))?.cssRules.length||0,header:document.querySelector('.app-header').getBoundingClientRect().height,logo:document.querySelector('.angle-mark').getBoundingClientRect().width,columns:getComputedStyle(document.querySelector('.dashboard-columns')).display}));assert.ok(layout.rules>250,'dashboard stylesheet must load');assert.ok(layout.header<120,'header must remain compact');assert.ok(layout.logo<80,'logo must remain within header');assert.equal(layout.columns,'grid');
  assert.equal(await page.locator('.stage').count(),6);assert.equal(await page.locator('#legend-done').textContent(),'0');
  await page.screenshot({path:'/tmp/angle-dashboard-desktop.png',fullPage:true});
  await page.locator('#project-deadline').fill('2026-10-30');await page.locator('#nav-calendar').click();assert.equal(await page.locator('#calendar-deadline').inputValue(),'2026-10-30');

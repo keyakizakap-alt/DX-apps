@@ -4,7 +4,11 @@ const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=
 const assets={};
 for(const file of await fs.readdir(new URL('../dist/',import.meta.url))){
   const extension=file.slice(file.lastIndexOf('.'));
-  if(types[extension])assets['/'+file]={type:types[extension],content:await fs.readFile(new URL('../dist/'+file,import.meta.url),'utf8')};
+  if(types[extension]){
+    const content=await fs.readFile(new URL('../dist/'+file,import.meta.url),'utf8');
+    if(extension==='.css'&&/<(?:!doctype|html|head|body)\b/i.test(content))throw new Error(`Invalid stylesheet: ${file} contains HTML`);
+    assets['/'+file]={type:types[extension],content};
+  }
 }
 const security=(await fs.readFile(new URL('../dist/security.js',import.meta.url),'utf8')).replace(/^export /gm,'');
 const worker=(await fs.readFile(new URL('../server/worker.mjs',import.meta.url),'utf8')).replace(/^import .*;\n/gm,'').replace(/^export /gm,'');
