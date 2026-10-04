@@ -19,3 +19,5 @@
 .workspace-note{font-size:11px;color:#586780;line-height:1.8;overflow-wrap:anywhere}.sidebar-bottom .workspace-note p{font-size:11px;line-height:1.8}.connection-status{font-size:11px;color:#586780;line-height:1.8;white-space:normal;overflow-wrap:anywhere}
 
 .tool-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:20px}.tool-card{margin:0;display:flex;flex-direction:column;gap:12px}.tool-card p{margin:0}.tool-card small{display:block;color:#586780;font-size:12px}.tool-card a{color:#24385f;text-decoration:underline}.tool-card .button{align-self:flex-start}#tool-transfer-dialog{width:min(720px,calc(100% - 32px))}#tool-transfer-preview{width:100%;max-height:45vh;resize:vertical}@media(max-width:700px){.tool-grid{grid-template-columns:1fr}}
+
+#artifact-edit-dialog{width:min(760px,calc(100vw - 32px))}.artifact-edit-label{display:block;margin:16px 0;color:#243458;font-weight:600}#artifact-edit-fields textarea{display:block;width:100%;margin-top:8px;line-height:1.8;font-weight:400}#artifact-edit-fields{max-height:60vh;overflow:auto;padding:0 4px}.artifact-tools{flex-wrap:wrap}

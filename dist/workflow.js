@@ -1,3 +1,4 @@
+import {editableFields,editedOutput,saveArtifactEdit,prepareRegeneration,restoreRegeneration} from './artifact-edits.js';
 import {demoAgent,DEMO_METRICS} from './demo.js';
 import { SAMPLE } from './engine.js';
 import { aiConfigured,aiSettings,protectedInput,discoverServer,connectionMessage } from './provider.js';
@@ -89,7 +90,7 @@ function render(){
   $('workflow-run').disabled=busy||starting||run?.status==='budget_exceeded';
   $('workflow-run').textContent=run&&!['ready','completed'].includes(run.status)?'続きから再開':run?.status==='completed'?'新しい制作を開始':'記事の制作を始める';
   if(run?.status==='completed')$('workflow-run').textContent='完了した成果物を確認';
-  if(run?.status==='task_completed')$('workflow-run').textContent='制作の続きを進める';
+  if(run?.status==='task_completed'||run?.status==='ready'&&run.agents.some(a=>a.output))$('workflow-run').textContent='制作の続きを進める';
   $('workflow-generated-note').hidden=!generatedSample;
   $('workflow-generate').disabled=busy||starting;
   $('workflow-demo-note').hidden=!demoMode;
@@ -126,6 +127,8 @@ function renderArtifact(){
   const agent=WORKFLOW_AGENTS.find(a=>a.id===selected),item=run&&agentState(run,selected);
   $('artifact-title').textContent=agent.name.replace('エージェント','');
   $('artifact-subtitle').textContent=agent.description;
+  $('artifact-edit').disabled=busy||starting||selected==='archive'||!editableFields(item?.output).length;
+  $('artifact-regenerate').disabled=busy||starting||!item?.output||run?.status==='budget_exceeded';
   $('artifact-download').disabled=!item?.output;$('artifact-copy').disabled=!item?.output;
   $('artifact-run').disabled=busy||starting||item?.status==='done'||run?.status==='budget_exceeded';$('artifact-run').textContent=item?.status==='done'?'この作業は完了しています':'この作業まで進める';
   if(!item?.output){
@@ -156,6 +159,16 @@ export function initWorkflow(options={}){
   openReview=options.openReview||(()=>{});
   $('workflow-run').addEventListener('click',()=>void start());
   $('artifact-run').addEventListener('click',()=>void executeTask(selected));
+  $('artifact-edit').addEventListener('click',()=>{
+    if(busy||starting||!run)return;const currentRun=run,id=selected,original=structuredClone(agentState(run,id).output),fields=editableFields(original),dialog=$('artifact-edit-dialog');
+    if(!fields.length||id==='archive')return;
+    $('artifact-edit-fields').innerHTML=fields.map((f,i)=>`<label class="artifact-edit-label" for="artifact-edit-field-${i}">${esc(f.label)}</label><textarea id="artifact-edit-field-${i}" data-edit-field="${i}" maxlength="60000" rows="${['article','content'].includes(f.path[0])?14:3}">${esc(f.value)}</textarea>`).join('');$('artifact-edit-error').hidden=true;dialog.showModal();
+    $('artifact-edit-save').onclick=async()=>{if(busy||starting||run!==currentRun)return;try{if(JSON.stringify(agentState(run,id).output)!==JSON.stringify(original))throw new Error('内容が変わりました。開き直してください。');const values=[...$('artifact-edit-fields').querySelectorAll('textarea')].map(t=>t.value);const changed=await saveArtifactEdit(run,id,editedOutput(original,values));dialog.close();approvalMode='risk';selected=id;render();status(changed?'変更を保存しました。「制作の続きを進める」で、校正や後の作業をやり直せます。':'内容は変更されていません。');}catch(e){$('artifact-edit-error').textContent=e.message;$('artifact-edit-error').hidden=false;}};
+  });
+  $('artifact-regenerate').addEventListener('click',async()=>{
+    if(busy||starting||!run)return;if(!demoMode&&(!aiConfigured()||!aiSettings().consent)){status('資料の取り扱いを確認してから、作り直してください。');$('workflow-settings').click();return;}const id=selected;if(!confirm('この内容を作り直しますか？ この内容を使う後の工程と公開前の確認もやり直します。'))return;
+    let backup;try{backup=await prepareRegeneration(run,id);approvalMode='risk';await start(id);if(['failed','cancelled','ready','budget_exceeded'].includes(run.status)){await restoreRegeneration(run,backup);selected=id;render();status('作り直しを完了できなかったため、前の内容を残しました。もう一度お試しください。',true);}}catch(e){if(backup)await restoreRegeneration(run,backup);render();status(e.message,true);}
+  });
   $('workflow-reconnect').addEventListener('click',async()=>{if(busy||starting)return;starting=true;render();status('制作を利用できるか確認しています。');try{await discoverServer({verify:true});status(connectionMessage());}finally{starting=false;render();}});
   $('workflow-stop').addEventListener('click',()=>controller?.abort());
   $('workflow-preview').addEventListener('click',()=>{const settings=aiSettings(),input=readInput(),labels={topic:'企画テーマ',audience:'想定読者',goal:'記事の目的',media:'掲載媒体',targetLength:'文字数の目安',sources:'調査資料',rules:'編集ルール',transcript:'文字起こし',metrics:'公開後の実績'};let text=Object.entries(labels).map(([key,label])=>label+'\n'+(input[key]||'未入力')).join('\n\n');if(input.editorialContext)text+='\n\n参考記事（今回の事実根拠には使いません）\n'+input.editorialContext.references.map(r=>[r.title,r.date,r.url,[...r.industry,...r.themes].join(' / '),r.excerpt].join('\n')).join('\n\n')+'\n\n分類の名称\n'+input.editorialContext.categoryNames.join(' / ');$('privacy-preview').textContent=settings.redact?redactText(text,settings.terms):text;$('privacy-dialog').showModal();});
