@@ -2,6 +2,7 @@ import {importLibrary,searchLibrary,categorySuggestions,referenceContext} from '
 import {downloadText} from './transfers.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let library=null,selected=[],query='',message='',generation=0;
+export function clearReferenceSelection(){selected=[];query='';changed();}
 export function selectedKnowledge(){return referenceContext(library,selected);}
 function changed(){globalThis.window?.dispatchEvent(new Event('knowledge:changed'));}
 export function renderKnowledge(container,{busy=false,topic='',afterRender=()=>{}}={}){

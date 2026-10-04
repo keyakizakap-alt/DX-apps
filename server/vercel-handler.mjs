@@ -31,7 +31,7 @@ export function createVercelHandler(worker) {
     let session=null;
     if(workspaceConfigured(env)&&['/api/agents','/api/connection'].includes(url.pathname)){try{session=await workspaceSession(request,env);}catch{return json({error:'workspace_unavailable'},503);}}
     if(workspaceConfigured(env)&&['/api/agents','/api/connection'].includes(url.pathname)&&!session)return json({error:'login_required'},401);
-    if(session&&url.pathname==='/api/agents'&&request.headers.has('X-Project-Id')){let role;try{role=await workspaceProjectRole(session,env,request.headers.get('X-Project-Id'));}catch{return json({error:'workspace_unavailable'},503);}if(!['owner','editor','approver'].includes(role))return json({error:'permission_denied'},403);}
+    if(session&&url.pathname==='/api/agents'&&request.headers.get('X-Project-Id')){let role;try{role=await workspaceProjectRole(session,env,request.headers.get('X-Project-Id'));}catch{return json({error:'workspace_unavailable'},503);}if(!['owner','editor','approver'].includes(role))return json({error:'permission_denied'},403);}
     const headers = new Headers(request.headers);
     // The Worker is shared with private Sites deployments. This adapter intentionally
     // replaces caller identity headers with verified company identity or the public demo identity.

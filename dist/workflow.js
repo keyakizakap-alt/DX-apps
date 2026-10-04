@@ -3,21 +3,21 @@ import {validateSnapshot} from './project-snapshots.js';
 import {editableFields,editedOutput,saveArtifactEdit,prepareRegeneration,restoreRegeneration} from './artifact-edits.js';
 import {demoAgent,DEMO_METRICS} from './demo.js';
 import { SAMPLE } from './engine.js';
-import { aiConfigured,aiSettings,protectedInput,discoverServer,connectionMessage } from './provider.js';
+import { aiConfigured,aiSettings,configureAI,protectedInput,discoverServer,connectionMessage } from './provider.js';
 import {taskPlan} from './tasks.js';
 import { redactText,audit,verifyAudit } from './security.js';
 import { WORKFLOW_AGENTS,createRun,agentState,runWorkflow,exportRun,approveRisk,approvePublication,publicationApproved } from './agents.js';
 import {productionProgress} from './progress.js';
 import {nextAction} from './supervisor.js';
 import {readableArtifact,downloadText} from './transfers.js';
-import {selectedKnowledge} from './knowledge-ui.js';
+import {selectedKnowledge,clearReferenceSelection} from './knowledge-ui.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let run=null,controller=null,selected='research',busy=false,starting=false,pendingTarget=null,openReview=()=>{},approvalMode='risk';
 let demoMode=false,generatedSample=false;
 const statusLabel={queued:'待機',running:'実行中',done:'完了',failed:'失敗',awaiting:'入力待ち',cancelled:'停止'};
 const inputIDs=['topic','audience','goal','media','length','sources','rules','transcript','metrics','web-search'];
-export function loadWorkflowSnapshot(snapshot){if(busy||starting)throw new Error('作業を停止してから記事を開いてください。');const checked=validateSnapshot(snapshot);for(const id of inputIDs){const key=id==='length'?'targetLength':id==='web-search'?'webSearch':id;if(id==='web-search')$('wf-'+id).checked=checked.input[key];else $('wf-'+id).value=checked.input[key];}run=checked.run;demoMode=!!run?.demo;generatedSample=false;selected=run?.agents.find(a=>a.id==='rewrite'&&a.output)?'rewrite':'research';approvalMode='risk';pendingTarget=null;render();showWorkflow();}
+export function loadWorkflowSnapshot(snapshot){if(busy||starting)throw new Error('作業を停止してから記事を開いてください。');const checked=validateSnapshot(snapshot);pendingTarget=null;configureAI({...aiSettings(),consent:false,enabled:false});clearReferenceSelection();for(const id of inputIDs){const key=id==='length'?'targetLength':id==='web-search'?'webSearch':id;if(id==='web-search')$('wf-'+id).checked=checked.input[key];else $('wf-'+id).value=checked.input[key];}run=checked.run;demoMode=!!run?.demo;generatedSample=false;selected=run?.agents.find(a=>a.id==='rewrite'&&a.output)?'rewrite':'research';approvalMode='risk';pendingTarget=null;render();showWorkflow();}
 export function refreshWorkflow(){render();}
 export function workflowSnapshot(){return {run,busy:busy||starting,input:readInput()};}
 export async function executeTask(target='all'){taskPlan(target);showWorkflow();if(target!=='all')selected=target;await start(target);}

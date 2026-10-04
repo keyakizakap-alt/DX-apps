@@ -39,3 +39,9 @@ test('Vercel origin variables support password-free deployment without trusting 
   const handle=setup();const configuration={VERCEL_URL:'example.test'};assert.equal((await handle(new Request(origin),configuration)).status,200);
   assert.equal((await handle(new Request('https://evil.test',{headers:{Host:'example.test','X-Forwarded-Host':'example.test'}}),configuration)).status,503);
 });
+test('signed-in users can start unsaved articles while existing project roles remain enforced',async()=>{
+ const previous=globalThis.fetch;const configuration={...env,SUPABASE_URL:'https://abcdefghijklmnopqrst.supabase.co',SUPABASE_PUBLISHABLE_KEY:'fixture',LOGIN_ALLOWED_EMAILS:'owner@company.test'};let forwarded=0;
+ globalThis.fetch=async url=>url.endsWith('/auth/v1/user')?Response.json({id:'owner',email:'owner@company.test',email_confirmed_at:'now'}):Response.json([]);
+ const handle=createVercelHandler({fetch:async()=>{forwarded++;return Response.json({ok:true});}});
+ try{for(const headers of [{},{'X-Project-Id':''}])assert.equal((await handle(api({Cookie:'__Host-angle_access=fixture',...headers}),configuration)).status,200);for(const id of ['invalid','11111111-1111-4111-8111-111111111111'])assert.equal((await handle(api({Cookie:'__Host-angle_access=fixture','X-Project-Id':id}),configuration)).status,403);assert.equal(forwarded,2);}finally{globalThis.fetch=previous;}
+});

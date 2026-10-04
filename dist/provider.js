@@ -40,7 +40,7 @@ export async function callAgent({ id, role='generation', instruction, input, sch
   let response;
   const body={agent:id,model:chosenModel,input,web};
   try {
-    response=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json','X-Data-Classification':config.classification,'X-Data-Consent':config.consent?'confirmed':'','X-Redact-Pii':config.redact?'true':'false','X-Project-Id':workspaceState().current?.id||''},body:JSON.stringify(body),signal:controller.signal});
+    response=await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json','X-Data-Classification':config.classification,'X-Data-Consent':config.consent?'confirmed':'','X-Redact-Pii':config.redact?'true':'false',...(workspaceState().current?.id?{'X-Project-Id':workspaceState().current.id}:{})},body:JSON.stringify(body),signal:controller.signal});
     if(!response.ok){
       let code='';try{code=(await response.json()).error;}catch{}
       const reasons={openrouter_key_required:'制作を利用できません。運営者にお問い合わせください。',provider_auth_failed:'制作サービスの認証を確認できませんでした。運営者に接続設定をご確認ください。',provider_credit_required:'制作サービスの利用枠を運営者に確認してください。',provider_policy_unavailable:'資料を安全に扱えることを確認できませんでした。資料は送信せず停止しました。運営者にお問い合わせください。',provider_model_unavailable:'指定された制作サービスを利用できません。運営者にお問い合わせください。',provider_route_unavailable:'この作業を現在利用できません。運営者にお問い合わせください。',provider_access_denied:'制作サービスの利用権限を運営者に確認してください。',provider_unavailable:'制作サービスを現在利用できません。時間をおいて再開してください。',provider_rate_limited:'制作サービスが混み合っています。少し待って、続きから再開してください。',provider_request_rejected:'資料を処理できませんでした。運営者にご確認ください。'};
