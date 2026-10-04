@@ -1,6 +1,6 @@
-import {scopeAgentInput} from './agent-input.js';
+import {scopeAgentInput,agentOutputBudget} from './agent-input.js';
 import { callAgent,modelFor } from './provider.js';
-import { segments,validateAIFindings } from './engine.js';
+import { segments,validateAIFindings,proposedRevision } from './engine.js';
 import { audit,digest } from './security.js';
 import {EDITORIAL_PROTOCOL,editorialChecks,validateCategories} from './editorial.js';
 import {taskPlan} from './tasks.js';
@@ -13,7 +13,7 @@ export const reviewSchema=obj({findings:arr(obj({category:{type:'string',enum:['
 const researchSchema=obj({summary:str,themes:arr(str),facts:arr(obj({claim:str,source_id:str,evidence:str})),gaps:arr(str)});
 const titlesSchema=obj({summary:str,titles:arr(str),headings:arr(str),tags:arr(str),categories:arr(str)});
 const socialSchema=obj({summary:str,posts:arr(obj({platform:str,text:str}))});
-const evidenceInstruction='根拠は入力されたTまたはRのsource_idのみ。quoteは原稿の連続文字列を完全一致で抜き出し、evidenceはそのIDの資料の連続文字列を完全一致で抜き出す。suggestionはquote全体を置き換える文章、判断できない場合は空文字。根拠のない指摘は出さず0件でもよい。最大10件。';
+const evidenceInstruction='根拠は入力されたTまたはRのsource_idを一つだけ指定。T4,T5など複数IDの結合は禁止。複数の文をつなげたevidenceは禁止。一つの資料行だけで説明できない場合は指摘を分けるか出さない。quoteは原稿の連続文字列を完全一致で抜き出し、evidenceはそのIDの資料の連続文字列を完全一致で抜き出す。suggestionはquote全体を置き換える文章、判断できない場合は空文字。根拠のない指摘は出さず0件でもよい。最大10件。';
 export const REVIEW_AGENTS=[
   {id:'facts',name:'事実・発言を確認',short:'事実・引用',role:'review',instruction:'取材の発言、数値、固有名詞、対象範囲、条件、断定の強さを専門に確認する。カテゴリーは引用・数値・文意を使用する。'+evidenceInstruction},
   {id:'style',name:'誤字・表記を確認',short:'表記・校正',role:'review',instruction:'入力された編集ルールに沿って表記、文体、誤記を確認する。存在しないルールを追加しない。カテゴリーは表記・文体を使用する。'+evidenceInstruction},
@@ -28,7 +28,7 @@ export const WORKFLOW_AGENTS=[
   {id:'transcript',name:'取材内容を整理',role:'generation',group:'執筆',description:'取材メモや文字起こしから、発言・数字・確認事項を整理',schema:documentSchema,instruction:'文字起こしの話者、数値、条件、固有名詞、主要な発言を整理する。引用はTのIDと原文を保持する。曖昧な固有名詞は勝手に直さず要確認。録音の文字起こし自体は利用者が提供したもの。'},
   {id:'writing',name:'記事の下書きを作成',role:'generation',group:'執筆',description:'構成と取材資料から初稿を作成',schema:articleSchema,instruction:'企画構成と取材資料に沿った記事の初稿を日本語で作成。引用は原文と意図を保つ。取材にない発言・成果・人名を追加しない。不明な事項は［要確認：内容］とする。指定文字数を目安にし、titleとarticleを返す。'},
   ...REVIEW_AGENTS.map(a=>({...a,group:'校正',description:a.id==='facts'?'発言・数字が取材資料と合っているか確認':a.id==='style'?'編集ルールに沿って誤字・表記を確認':'読者に伝わる順序と説明になっているか確認',schema:reviewSchema})),
-  {id:'rewrite',name:'原稿を修正',role:'generation',group:'校正',description:'資料で確かめた指摘をもとに原稿を修正',schema:articleSchema,instruction:'検証済みの指摘をもとに記事全体の修正案を作成。取材根拠を超える断定を避け、根拠を確認できない事項は［要確認］を残す。提案段階であり外部校正者の承認済みとは書かない。'},
+  {id:'rewrite',name:'原稿を修正',role:'local',group:'校正',description:'根拠を確認できた修正案をまとめ、変更箇所以外は保持',schema:articleSchema,instruction:'検証済みの指摘をもとに記事全体の修正案を作成。取材根拠を超える断定を避け、根拠を確認できない事項は［要確認］を残す。提案段階であり外部校正者の承認済みとは書かない。'},
   {id:'final_check',name:'原稿と資料を最終確認',role:'review',group:'校正',description:'修正した原稿を、取材資料ともう一度確認',schema:reviewSchema,instruction:'リライト後の原稿を取材発言・数字・条件・媒体ルールと照合。公開前の確認候補を列挙する。'+evidenceInstruction},
   {id:'titles',name:'タイトル・見出し',role:'generation',group:'公開準備',description:'タイトル・見出し・タグ候補を提案',schema:titlesSchema,instruction:'原稿の根拠の範囲で、誇張しないタイトル候補3件、見出し、タグ・カテゴリの候補を作成。原稿や取材にない成果をタイトルに追加しない。'},
   {id:'visuals',name:'写真・画像を準備',role:'generation',group:'公開準備',description:'写真の選び方・加工の指示・画像の説明文を提案',schema:documentSchema,instruction:'原稿に合う写真選定条件、素材を探すキーワード、掲載許諾の確認、トリミング・サイズの指示、画像が用意された際の代替テキストの案を作成。画像そのものは生成・取得・加工していないことを明示する。'},
@@ -42,6 +42,14 @@ WORKFLOW_AGENTS.find(a=>a.id==='interview').instruction+='\n過去記事と同�
 WORKFLOW_AGENTS.find(a=>a.id==='planning').instruction+='\n参考記事が選択されている場合、既存の切り口と今回取材すべき新しい疑問を分けて示す。宣伝、解説、インタビュー、体験、告知のどれに近い企画かを提案し、媒体の掲載区分は人が判断する。';
 WORKFLOW_AGENTS.find(a=>a.id==='writing').instruction+='\n媒体に合う場合は冒頭に根拠のある要点を2〜3項目まとめ、背景から取材による説明へつなぐ。参考記事の広告コード・目次の重複・写真キャプションを本文に混ぜない。';
 WORKFLOW_AGENTS.find(a=>a.id==='titles').instruction+='\neditorialContext.categoryNamesがある場合、カテゴリはそこにある名称だけを選ぶ。根拠のない期待感や不安をあおる言い回しは避け、今回の原稿の問いと答えを伝える。';
+
+const reviewCategories={facts:['引用','数値','文意'],style:['表記','文体'],structure:['構成','文意']};
+for(const agent of [...REVIEW_AGENTS,...WORKFLOW_AGENTS.filter(a=>reviewCategories[a.id])]){
+ const allowed=reviewCategories[agent.id];
+ agent.instruction+='\n担当範囲は'+allowed.join('・')+'のみ。他の担当の仕事や好みによる指摘を追加しない。直接引用の口調は文体統一の対象にしない。編集ルールの対象（本文・見出し・直接引用）を守る。指摘は単一IDの原文に完全一致する根拠がある場合だけ。';
+ if(agent.schema){agent.schema=structuredClone(reviewSchema);agent.schema.properties.findings.items.properties.category.enum=allowed;}
+}
+WORKFLOW_AGENTS.find(a=>a.id==='writing').instruction+='\n最優先は入力transcriptとsourceMaterialの原文。構成案より一次資料を優先する。取材記事では、資料にある会社名・話者の氏名と役職・主要な発言・成果の数字・対象範囲・期間・例外条件を本文に具体的に残す。サンプルの架空企業もその名前のまま記事にする。原文にない一般論や抽象的な解説で取材内容を置き換えない。資料に答えがある事項を要確認にしない。';
 
 export function mergeReviewResults(results) {
   const findings=[],seen=new Set();let rejected=0;
@@ -119,7 +127,12 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',execu
     state.status='running';state.error='';state.model=run.demo?'demo':modelFor(agent.role);await audit(run,'agent_started',{agent:id,model:state.model});onUpdate(run);
     const started=Date.now();
     try{
-      if(id==='archive'){
+      if(id==='rewrite'){
+        const writing=agentState(run,'writing').output;
+        const proposal=proposedRevision(writing.article,run.reviewFindings);
+        state.model='local';state.proposal=proposal;
+        state.output={title:writing.title,article:proposal.article,summary:`根拠を確認できた修正案を${proposal.applied.length}件まとめました。変更箇所以外の文章はそのままです。${proposal.skipped.length?'重複や引用に関わる修正は、個別の確認が必要です。':''}`};
+      }else if(id==='archive'){
         const title=agentState(run,'rewrite').output?.title||agentState(run,'writing').output?.title||run.input.topic;
         const article=context().draft;
         state.output={summary:'取材資料・原稿・校正結果をまとめました。',content:makeWordPressHTML(title,article),items:['「制作記録をダウンロード」で、成果物をまとめて保存できます。','担当者が写真の掲載許可と原稿の内容を確認し、公開してください。']};
@@ -134,7 +147,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',execu
           if(signal?.aborted){const error=new Error('実行を停止しました。');error.name='AbortError';throw error;}
           if(run.attempts>=MAX_WORKFLOW_CALLS){const error=new Error('この制作の処理回数の上限に達しました。');error.name='ExecutionLimitError';throw error;}
           run.attempts++;
-          try{response=await executeAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:['writing','rewrite'].includes(id)?8000:4000});break;}
+          try{response=await executeAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:agentOutputBudget(id,payload)});break;}
           catch(error){
             if(attempt||error.retryable!==true||signal?.aborted)throw error;
             await audit(run,'agent_retry_scheduled',{agent:id,attempt:2});onUpdate(run);
@@ -207,7 +220,7 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',execu
     await stage('final_check');
     const revision=agentState(run,'rewrite').output;
     run.editorialChecks=editorialChecks(revision.article,run.input.sources,run.input.transcript);
-    const risky=run.rejected>0||(run.finalFindings||[]).length>0||run.editorialChecks.length>0||/［要確認|\[要確認/.test(revision.article);
+    const risky=agentState(run,'rewrite').proposal?.skipped.length>0||run.rejected>0||(run.finalFindings||[]).length>0||run.editorialChecks.length>0||/［要確認|\[要確認/.test(revision.article);
     const riskHash=await digest(revision);
     if(risky&&run.approvals.risk?.hash!==riskHash){
       run.reviewScope='draft';if(run.interventionHash!==riskHash){run.interventionHash=riskHash;run.interventionVersion=(run.interventionVersion||0)+1;}

@@ -100,3 +100,16 @@ export function acceptanceError(finding, findings) {
   if (findings.some(f => f.id !== finding.id && f.status === 'accepted' && finding.start < f.end && finding.end > f.start)) return '採用済みの修正と箇所が重複しています。先の修正を取り消してから採用してください。';
   return '';
 }
+
+// Assemble a proposal from literal, non-overlapping corrections; never rewrite untouched text.
+export function proposedRevision(original, findings) {
+  const chosen=[],skipped=[];
+  for(const f of findings){
+    const insideQuote=/「[^」]*」|『[^』]*』/g;
+    const quoteRanges=[...original.matchAll(insideQuote)];
+    const changesDirectQuote=f.sourceType==='rule'&&quoteRanges.some(m=>f.start<m.index+m[0].length&&f.end>m.index);
+    if(changesDirectQuote||acceptanceError(f,chosen.map(c=>({...c,status:'accepted'})))||original.slice(f.start,f.end)!==f.quote){skipped.push(f.id);continue;}
+    chosen.push(f);
+  }
+  return {article:revisedDraft(original,chosen.map(f=>({...f,status:'accepted'}))),applied:chosen.map(f=>f.id),skipped};
+}

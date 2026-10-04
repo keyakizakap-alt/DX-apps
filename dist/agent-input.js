@@ -28,3 +28,10 @@ export function scopeAgentInput(id,input){
  }
  return scoped;
 }
+
+// A Japanese character target is not a reason to reserve 8,000 tokens for every short article.
+export function agentOutputBudget(id,input={}){
+ if(id!=='writing')return 4000;
+ const length=Number(input.targetLength);
+ return Number.isFinite(length)&&length>0?Math.min(8000,Math.max(1800,Math.ceil(length*1.6+600))):4000;
+}
