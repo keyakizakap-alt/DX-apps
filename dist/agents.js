@@ -1,3 +1,4 @@
+import {scopeAgentInput} from './agent-input.js';
 import { callAgent,modelFor } from './provider.js';
 import { segments,validateAIFindings } from './engine.js';
 import { audit,digest } from './security.js';
@@ -121,13 +122,29 @@ export async function runWorkflow(run,{signal,onUpdate=()=>{},target='all',execu
       if(id==='archive'){
         const title=agentState(run,'rewrite').output?.title||agentState(run,'writing').output?.title||run.input.topic;
         const article=context().draft;
-        state.output={summary:'取材資料・原稿・校正結果をまとめました。',content:makeWordPressHTML(title,article),items:['「制作記録を保存」で、成果物をまとめて保存できます。','担当者が写真の掲載許可と原稿の内容を確認し、公開してください。']};
+        state.output={summary:'取材資料・原稿・校正結果をまとめました。',content:makeWordPressHTML(title,article),items:['「制作記録をダウンロード」で、成果物をまとめて保存できます。','担当者が写真の掲載許可と原稿の内容を確認し、公開してください。']};
       }else{
         let payload=context();
         if(id==='coordination')payload={topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,media:run.input.media,interviewAlreadyProvided:!!run.input.transcript.trim(),planning:agentState(run,'planning').output,research:agentState(run,'research').output};
         if(id==='research')payload={topic:run.input.topic,audience:run.input.audience,goal:run.input.goal,sourceMaterial:segments(run.input.sources,'S'),editorialContext:run.input.editorialContext,webSearchEnabled:run.input.webSearch};
         if(run.attempts>=MAX_WORKFLOW_CALLS){const error=new Error('この制作のAI処理は48回を上限に停止しました。成果物を保存し、制作の範囲を見直してください。');error.name='ExecutionLimitError';throw error;}
-        run.attempts++;const response=await executeAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:['writing','rewrite'].includes(id)?8000:4000});
+        payload=scopeAgentInput(id,payload);
+        let response;
+        for(let attempt=0;attempt<2;attempt++){
+          if(signal?.aborted){const error=new Error('実行を停止しました。');error.name='AbortError';throw error;}
+          if(run.attempts>=MAX_WORKFLOW_CALLS){const error=new Error('この制作の処理回数の上限に達しました。');error.name='ExecutionLimitError';throw error;}
+          run.attempts++;
+          try{response=await executeAgent({id,role:agent.role,instruction:agent.instruction,input:payload,schema:agent.schema,signal,web:id==='research'&&run.input.webSearch,maxTokens:['writing','rewrite'].includes(id)?8000:4000});break;}
+          catch(error){
+            if(attempt||error.retryable!==true||signal?.aborted)throw error;
+            await audit(run,'agent_retry_scheduled',{agent:id,attempt:2});onUpdate(run);
+            await new Promise((resolve,reject)=>{
+              const stop=()=>{clearTimeout(timer);signal?.removeEventListener('abort',stop);const error=new Error('実行を停止しました。');error.name='AbortError';reject(error);};
+              const timer=setTimeout(()=>{signal?.removeEventListener('abort',stop);resolve();},1000);
+              signal?.addEventListener('abort',stop,{once:true});if(signal?.aborted)stop();
+            });
+          }
+        }
         run.usageRecords.push({agent:id,time:new Date().toISOString(),...response.usage});
         state.output=response.output;state.annotations=response.annotations;state.usage=response.usage;
         if(id==='titles'){

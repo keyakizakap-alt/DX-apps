@@ -4,7 +4,7 @@ import {readDocx} from './docx.js';
 export const BRIEF_FIELDS={topic:300,audience:300,goal:500,media:100,targetLength:0,sources:20000,rules:15000,transcript:50000,metrics:10000,webSearch:0};
 const media=['ビジネスメディア','オウンドメディア','インタビュー記事','その他'];
 export function parseBrief(text){
-  let data;try{data=JSON.parse(text);}catch{throw new Error('企画ファイルを読み取れませんでした。「入力内容を保存」で作成したファイルをご利用ください。');}
+  let data;try{data=JSON.parse(text);}catch{throw new Error('企画ファイルを読み取れませんでした。「企画をダウンロード」で作成したファイルをご利用ください。');}
   if(!data||typeof data!=='object'||Array.isArray(data)||data.version!==1||!data.brief||typeof data.brief!=='object'||Array.isArray(data.brief)||Object.keys(data).some(k=>!['version','brief'].includes(k)))throw new Error('このファイルは企画ファイルではありません。入力用のひな形をご利用ください。');
   const brief=data.brief;
   if(Object.keys(brief).some(k=>!Object.hasOwn(BRIEF_FIELDS,k)))throw new Error('企画ファイルに対応していない項目があります。入力用のひな形をご利用ください。');
@@ -44,7 +44,7 @@ function replace(input,text){if(!canEdit(input))return;if(input.value.trim()&&in
 export function initTransfers(){
   for(const id of ['wf-sources','wf-rules','wf-transcript','wf-metrics','draft','transcript','rules']){
     const input=$(id),toolbar=document.createElement('div');toolbar.className='material-toolbar';toolbar.setAttribute('aria-label',id.startsWith('wf-')?input.closest('label').firstChild.textContent.trim()+'の操作':({draft:'初稿',transcript:'文字起こし',rules:'編集ルール'}[id])+'の操作');
-    for(const [action,label] of [['upload','ファイルから読み込む'],['paste','貼り付け'],['copy','コピー'],['save','保存']]){const button=document.createElement('button');button.type='button';button.className='material-button';button.textContent=label;button.dataset.materialAction=action;button.dataset.materialTarget=id;toolbar.append(button);}input.after(toolbar);
+    for(const [action,label] of [['upload','ファイルから読み込む'],['paste','貼り付け'],['copy','コピー'],['save','ダウンロード']]){const button=document.createElement('button');button.type='button';button.className='material-button';button.textContent=label;button.dataset.materialAction=action;button.dataset.materialTarget=id;toolbar.append(button);}input.after(toolbar);
     const note=document.createElement('small');note.className='material-format';note.textContent='Word・テキスト・CSVに対応。ファイルはこのページ内で読み込みます。';toolbar.after(note);
   }
   const stateUpdate=()=>{document.querySelectorAll('[data-material-target]').forEach(b=>{const disabled=$(b.dataset.materialTarget).disabled||workflowSnapshot().busy;if(b.disabled!==disabled)b.disabled=disabled;});for(const id of ['brief-import','brief-save','brief-template'])$(id).disabled=workflowSnapshot().busy;};
@@ -71,7 +71,7 @@ export function initTransfers(){
       $('brief-details').open=true;$('materials-details').open=!!(brief.sources||brief.rules||brief.transcript);$('metrics-details').open=!!brief.metrics;announce('企画・取材資料を読み込みました。資料の送信同意や承認をファイルから引き継ぐことはありません。');
     }catch(e){announce(e.message);}finally{$('brief-file').value='';}
   });
-  $('brief-save').addEventListener('click',()=>{const input=workflowSnapshot().input,brief=Object.fromEntries(Object.keys(BRIEF_FIELDS).map(key=>[key,key==='webSearch'?false:input[key]]));downloadText(JSON.stringify({version:1,brief},null,2),'記事の企画・取材資料.json','application/json;charset=utf-8');announce('入力内容を保存しました。「企画ファイルを読み込む」で再利用できます。参考記事は記事資料として別に保存してください。');});
+  $('brief-save').addEventListener('click',()=>{const input=workflowSnapshot().input,brief=Object.fromEntries(Object.keys(BRIEF_FIELDS).map(key=>[key,key==='webSearch'?false:input[key]]));downloadText(JSON.stringify({version:1,brief},null,2),'記事の企画・取材資料.json','application/json;charset=utf-8');announce('企画ファイルをダウンロードしました。「企画ファイルを読み込む」で再利用できます。参考記事は記事資料として別に保存してください。');});
   $('brief-template').addEventListener('click',()=>{downloadText(JSON.stringify({version:1,brief:{topic:'',audience:'',goal:'',media:media[0],targetLength:1500,sources:'',rules:'',transcript:'',metrics:'',webSearch:false}},null,2),'企画入力のひな形.json','application/json;charset=utf-8');announce('入力用のひな形を保存しました。');});
   window.addEventListener('data:clear',()=>{target=null;$('material-file').value='';$('brief-file').value='';$('transfer-status').textContent='';$('transfer-status').hidden=true;clearTimeout(toastTimer);});stateUpdate();
 }

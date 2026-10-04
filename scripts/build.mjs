@@ -11,10 +11,11 @@ for(const file of await fs.readdir(new URL('../dist/',import.meta.url))){
   }
 }
 const security=(await fs.readFile(new URL('../dist/security.js',import.meta.url),'utf8')).replace(/^export /gm,'');
+const agentInput=(await fs.readFile(new URL('../dist/agent-input.js',import.meta.url),'utf8')).replace(/^export /gm,'');
 const worker=(await fs.readFile(new URL('../server/worker.mjs',import.meta.url),'utf8')).replace(/^import .*;\n/gm,'').replace(/^export /gm,'');
 const specs=[...WORKFLOW_AGENTS,PARAGRAPH_AGENT].filter(a=>a.role!=='local').map(({id,role,instruction,schema})=>({id,role,instruction,schema}));
 await fs.mkdir(new URL('../dist/server/',import.meta.url),{recursive:true});
-await fs.writeFile(new URL('../dist/server/index.js',import.meta.url),security+'\n'+worker+`\nexport default createWorker(${JSON.stringify(assets)},${JSON.stringify(specs)});\n`);
+await fs.writeFile(new URL('../dist/server/index.js',import.meta.url),security+'\n'+agentInput+'\n'+worker+`\nexport default createWorker(${JSON.stringify(assets)},${JSON.stringify(specs)});\n`);
 const path=new URL('../.openai/hosting.json',import.meta.url);
 try {
   const manifest=JSON.parse(await fs.readFile(path,'utf8'));

@@ -81,6 +81,7 @@ async function startProduction(target){
   }finally{busy=false;controller=null;render();}
 }
 function render(){
+  document.querySelector('.project-progress').classList.toggle('not-started',!run);
   const knowledge=selectedKnowledge();$('workflow-references').innerHTML=`<strong>参考記事${knowledge?'：'+knowledge.references.length+'本を選択':'を活かす'}</strong><p>${knowledge?knowledge.references.map(r=>esc(r.title)).join('<br>'):'過去記事から、切り口・構成・分類のヒントを選べます。'}</p><button class="button secondary" data-section="knowledge" ${busy?'disabled':''}>過去記事を探す</button>`;
   const agents=run?.agents||WORKFLOW_AGENTS.map(a=>({id:a.id,status:'queued',output:null}));
   const completed=agents.filter(a=>a.status==='done').length;
@@ -95,8 +96,12 @@ function render(){
   $('workflow-phase').textContent=busy?'実行中':starting?'準備を確認中':({task_completed:'作業完了',awaiting_transcript:'取材待ち',awaiting_metrics:'実績待ち',awaiting_review:'人の確認待ち',completed:'完了',failed:'要再開',cancelled:'停止',budget_exceeded:'処理上限'}[run?.status]||'待機中');
   $('workflow-run').disabled=busy||starting||!canEdit()||run?.status==='budget_exceeded';
   $('workflow-run').textContent=run&&!['ready','completed'].includes(run.status)?'続きから再開':run?.status==='completed'?'新しい制作を開始':'記事の制作を始める';
-  if(run?.status==='completed')$('workflow-run').textContent='完了した作成した内容を確認';
+  if(run?.status==='completed')$('workflow-run').textContent='作成した内容を見る';
   if(run?.status==='task_completed'||run?.status==='ready'&&run.agents.some(a=>a.output))$('workflow-run').textContent='制作の続きを進める';
+  if(run?.status==='awaiting_review')$('workflow-run').textContent='原稿を確認する';
+  if(run?.status==='awaiting_transcript'&&!$('wf-transcript').value.trim())$('workflow-run').textContent='取材メモを追加する';
+  if(run?.status==='awaiting_metrics'&&!$('wf-metrics').value.trim())$('workflow-run').textContent='公開後の実績を追加する';
+  if(['failed','cancelled'].includes(run?.status))$('workflow-run').textContent='止まった作業を再開する';
   $('workflow-generated-note').hidden=!generatedSample;
   $('workflow-generate').disabled=busy||starting||!canEdit();
   $('workflow-demo-note').hidden=!demoMode;
@@ -138,6 +143,7 @@ function renderArtifact(){
   $('artifact-edit').disabled=busy||starting||!canEdit()||selected==='archive'||!editableFields(item?.output).length;
   $('artifact-regenerate').disabled=busy||starting||!canEdit()||!item?.output||run?.status==='budget_exceeded';
   $('artifact-download').disabled=!item?.output;$('artifact-copy').disabled=!item?.output;
+  $('artifact-regenerate').textContent=['writing','rewrite'].includes(selected)?'全文を作り直す':'この内容を作り直す';
   $('artifact-run').disabled=busy||starting||!canEdit()||item?.status==='done'||run?.status==='budget_exceeded';$('artifact-run').textContent=item?.status==='done'?'この作業は完了しています':'この作業まで進める';
   if(!item?.output){
     $('artifact-content').innerHTML=`<div class="artifact-empty"><span class="artifact-empty-icon" aria-hidden="true">▤</span><h3>${item?.status==='awaiting'?'必要な資料を待っています':item?.status==='running'?'内容を作成しています':item?.status==='failed'?'この工程で停止しました':'ここに作成した内容が表示されます'}</h3><p>${esc(item?.error||agent.description)}</p><p>${item?.status==='awaiting'&&selected==='transcript'?'取材メモ・文字起こしを資料欄に追加して、続きから再開してください。':item?.status==='failed'&&selected==='coordination'?'依頼メールはあとから作り直せます。他の作業と記事の制作は続けられます。':item?.status==='failed'?'完了した作業は残っています。続きから再開できます。':'企画・取材資料を入力して、記事の制作を始めてください。'}</p></div>`;return;
@@ -165,7 +171,22 @@ function download(content,type,name){const url=URL.createObjectURL(new Blob([con
 function selectedArtifact(){const out=run&&agentState(run,selected).output;if(selected==='archive'&&out){const article=agentState(run,'rewrite').output||agentState(run,'writing').output;return {...out,title:article?.title||run.input.topic,content:article?.article||''};}return out;}
 export function initWorkflow(options={}){
   openReview=options.openReview||(()=>{});
-  $('workflow-run').addEventListener('click',()=>void start());
+  const actionRow=$('workflow-run').closest('.workflow-actions');
+  const positionActions=()=>($('brief-details').open?$('brief-action-slot'):$('workflow-action-slot')).append(actionRow);
+  $('brief-details').addEventListener('toggle',positionActions);positionActions();
+  ['transcript','metrics'].forEach(id=>$('wf-'+id).addEventListener('input',()=>{if(run?.status===(id==='transcript'?'awaiting_transcript':'awaiting_metrics'))$('workflow-run').textContent=$('wf-'+id).value.trim()?'続きから再開':id==='transcript'?'取材メモを追加する':'公開後の実績を追加する';}));
+  document.addEventListener('click',event=>document.querySelectorAll('#workflow-view .action-menu[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;}));
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('#workflow-view .action-menu[open]').forEach(menu=>{menu.open=false;menu.querySelector('summary').focus();});});
+  document.querySelectorAll('#workflow-view .action-menu').forEach(menu=>menu.addEventListener('click',e=>{if(e.target.closest('button'))menu.open=false;}));
+  $('workflow-run').addEventListener('click',()=>{
+    if(run?.status==='completed'){document.querySelector('.artifacts-panel').scrollIntoView({behavior:'smooth',block:'start'});return;}
+    if(run?.status==='awaiting_review'){$('approval-panel').scrollIntoView({behavior:'smooth',block:'center'});$('approval-reason').focus({preventScroll:true});return;}
+    if(run?.status==='awaiting_transcript'||run?.status==='awaiting_metrics'){
+      const field=$(run.status==='awaiting_transcript'?'wf-transcript':'wf-metrics');
+      if(!field.value.trim()){$('brief-details').open=true;$(run.status==='awaiting_transcript'?'materials-details':'metrics-details').open=true;field.scrollIntoView({behavior:'smooth',block:'center'});field.focus({preventScroll:true});return;}
+    }
+    void start();
+  });
   $('artifact-run').addEventListener('click',()=>void executeTask(selected));
   $('artifact-edit').addEventListener('click',()=>{
     if(busy||starting||!run||!canEdit())return;const currentRun=run,id=selected,original=structuredClone(agentState(run,id).output),fields=editableFields(original),dialog=$('artifact-edit-dialog');

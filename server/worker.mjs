@@ -1,3 +1,4 @@
+import {scopeAgentInput} from '../dist/agent-input.js';
 import { containsSecret,redactText,digest } from '../dist/security.js';
 const CSP="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'self' https://chatgpt.com https://chat.openai.com";
 const headers={'Content-Security-Policy':CSP,'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Cache-Control':'no-store','Strict-Transport-Security':'max-age=31536000'};
@@ -36,7 +37,7 @@ export function createWorker(assets,specs){return{async fetch(request,env={}){
     if(healthChecks.size>1000)healthChecks.clear();
     const result=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
       try{
-        const response=await fetch('https://openrouter.ai/api/v1/key',{headers:{Authorization:`Bearer ${env.OPENROUTER_API_KEY.trim()}`},signal:controller.signal});
+        const response=await fetch('https://openrouter.ai/api/v1/key',{redirect:'error',headers:{Authorization:`Bearer ${env.OPENROUTER_API_KEY.trim()}`},signal:controller.signal});
         let connection=response.ok?'ready':response.status===401||response.status===403?'invalid_key':response.status===429?'rate_limited':'unreachable';
         if(response.ok){let data;try{data=JSON.parse(await readBounded(response.body,16000));}catch{connection='unreachable';}if(!data?.data||typeof data.data!=='object')connection='unreachable';else if(data.data.disabled===true)connection='invalid_key';else if(typeof data.data.limit_remaining==='number'&&data.data.limit_remaining<=0)connection='credit_required';}
         else await response.body?.cancel();connectionLog(connection,response.status);return {...state,configured:connection==='ready',connection};
@@ -72,7 +73,8 @@ export function createWorker(assets,specs){return{async fetch(request,env={}){
       const redact=request.headers.get('X-Redact-Pii')==='true';
       // Internal material always uses the minimum built-in PII masking at the egress boundary.
       if(classification==='internal'&&!redact)return json({error:'internal_requires_masking'},403);
-      const clean=redact?redactText(raw):raw;
+      let scoped;try{scoped=JSON.stringify(scopeAgentInput(agent.id,body.input));}catch{return json({error:'invalid_input'},400);}
+      const clean=redact?redactText(scoped):scoped;
       if(request.headers.has('X-OpenRouter-Key'))return json({error:'client_key_not_allowed'},400);
       let key=env.OPENROUTER_API_KEY?.trim();
       if(!validKey(key)){connectionLog('missing_or_invalid_key',401);return json({error:'openrouter_key_required'},401);}
@@ -82,7 +84,7 @@ export function createWorker(assets,specs){return{async fetch(request,env={}){
       ],response_format:{type:'json_schema',json_schema:{name:agent.id,strict:true,schema:agent.schema}}};
       if(body.web)payload.plugins=[{id:'web',max_results:3}];
       console.info(JSON.stringify({event:'agent_request',agent:agent.id}));
-      const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`,'X-OpenRouter-Title':'ANGLE Review'},body:JSON.stringify(payload),signal:controller.signal});
+      const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`,'X-OpenRouter-Title':'ANGLE Review'},body:JSON.stringify(payload),signal:controller.signal});
       key=null;
       if(!response.ok){let message='';try{const error=JSON.parse(await readBounded(response.body,16000));message=String(error.error?.message||'');}catch{}const code=providerFailure(response.status,message);connectionLog(code,response.status);return json({error:code},[400,401,402,403,404,408,429,502,503].includes(response.status)?response.status:502);}
       let text;try{text=await readBounded(response.body,1500000);}catch{return json({error:'provider_output_too_large'},502);}
