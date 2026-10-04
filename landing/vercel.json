@@ -37,6 +37,249 @@
           "value": "camera=(), microphone=(), geolocation=()"
         }
       ]
+    },
+    {
+      "source": "/guide/files/00.docx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''01_%E5%AE%9F%E7%94%9F%E6%88%90%E3%81%AE%E5%88%9D%E7%A8%BF_%E5%8E%9F%E6%96%87.docx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/01.pdf",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''01_%E5%AE%9F%E7%94%9F%E6%88%90%E3%81%AE%E5%88%9D%E7%A8%BF_%E5%8E%9F%E6%96%87.pdf"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/02.docx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''02_%E8%B3%87%E6%96%99%E3%81%AB%E7%85%A7%E3%82%89%E3%81%97%E3%81%A6%E6%95%B4%E3%81%88%E3%81%9F%E7%B7%A8%E9%9B%86%E8%A6%8B%E6%9C%AC.docx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/03.pdf",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''02_%E8%B3%87%E6%96%99%E3%81%AB%E7%85%A7%E3%82%89%E3%81%97%E3%81%A6%E6%95%B4%E3%81%88%E3%81%9F%E7%B7%A8%E9%9B%86%E8%A6%8B%E6%9C%AC.pdf"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/04.docx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''03_%E8%A6%8B%E5%87%BA%E3%81%97%E3%81%A8SNS%E3%81%B8%E3%81%AE%E5%B1%95%E9%96%8B%E8%A6%8B%E6%9C%AC.docx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/05.pdf",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''03_%E8%A6%8B%E5%87%BA%E3%81%97%E3%81%A8SNS%E3%81%B8%E3%81%AE%E5%B1%95%E9%96%8B%E8%A6%8B%E6%9C%AC.pdf"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/06.json",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E3%82%A2%E3%83%97%E3%83%AA%E3%81%AB%E8%AA%AD%E3%81%BF%E8%BE%BC%E3%82%81%E3%82%8B%E4%BC%81%E7%94%BB.json"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/07.txt",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E5%8F%96%E6%9D%90%E8%B3%87%E6%96%99_%E6%9E%B6%E7%A9%BA%E3%82%B5%E3%83%B3%E3%83%97%E3%83%AB.txt"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/08.json",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E5%AE%9F%E7%94%9F%E6%88%90%E3%81%AE%E6%8C%87%E6%91%98_%E7%A2%BA%E8%AA%8D%E8%A8%98%E9%8C%B2.json"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/09.md",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E7%94%9F%E6%88%90%E7%B5%90%E6%9E%9C%E3%81%A8%E7%B7%A8%E9%9B%86%E3%81%AE%E5%8C%BA%E5%88%A5.md"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/10.txt",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E7%B7%A8%E9%9B%86%E3%83%AB%E3%83%BC%E3%83%AB_%E3%82%B5%E3%83%B3%E3%83%97%E3%83%AB.txt"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/11.pdf",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''01_%E4%BF%AE%E6%AD%A3%E5%89%8D%E5%BE%8C%E3%81%AE%E6%AF%94%E8%BC%83%E3%82%B7%E3%83%BC%E3%83%88.pdf"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/12.pptx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''01_%E4%BF%AE%E6%AD%A3%E5%89%8D%E5%BE%8C%E3%81%AE%E6%AF%94%E8%BC%83%E3%82%B7%E3%83%BC%E3%83%88.pptx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/13.pdf",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''02_%E7%B5%8C%E5%96%B6%E8%80%85%E5%90%91%E3%81%91%E6%8F%90%E6%A1%88%E6%9B%B8_1%E6%9E%9A.pdf"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/14.pptx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''02_%E7%B5%8C%E5%96%B6%E8%80%85%E5%90%91%E3%81%91%E6%8F%90%E6%A1%88%E6%9B%B8_1%E6%9E%9A.pptx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/15.mp4",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''ANGLE_Review_%E5%AE%9F%E6%93%8D%E4%BD%9C%E7%B4%B9%E4%BB%8B.mp4"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/16.md",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E5%8B%95%E7%94%BB%E3%81%AE%E4%BD%BF%E3%81%84%E6%96%B9.md"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/17.png",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E5%8B%95%E7%94%BB%E3%81%AE%E8%A1%A8%E7%B4%99.png"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/18.txt",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E5%8F%8E%E9%8C%B2%E3%81%A7%E4%BF%AE%E6%AD%A3%E3%81%97%E3%81%9F%E5%8E%9F%E7%A8%BF.txt"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/19.webm",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E5%AE%9F%E6%93%8D%E4%BD%9C_%E5%8F%8E%E9%8C%B2%E7%B4%A0%E6%9D%90.webm"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/20.docx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E7%B4%B9%E4%BB%8B%E5%8B%95%E7%94%BB_%E6%A7%8B%E6%88%90%E3%81%A8%E8%AA%AC%E6%98%8E.docx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/21.xlsx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''5%E8%A8%98%E4%BA%8B%E3%81%AE%E8%A9%A6%E8%A1%8C%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88_%E8%A8%98%E5%85%A5%E7%94%A8.xlsx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/22.docx",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E8%A9%A6%E8%A1%8C%E7%B5%90%E6%9E%9C%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88_%E8%A8%98%E5%85%A5%E7%94%A8.docx"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/23.pdf",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E8%A9%A6%E8%A1%8C%E7%B5%90%E6%9E%9C%E3%83%AC%E3%83%9D%E3%83%BC%E3%83%88_%E8%A8%98%E5%85%A5%E7%94%A8.pdf"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/24.md",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E3%81%AF%E3%81%98%E3%82%81%E3%81%AB.md"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/25.md",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''%E5%88%B6%E4%BD%9C%E7%89%A9%E3%81%AE%E7%A2%BA%E8%AA%8D%E7%B5%90%E6%9E%9C.md"
+        }
+      ]
+    },
+    {
+      "source": "/guide/files/all-artifacts.zip",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "inline; filename*=UTF-8''ANGLE_Review_%E5%85%A8%E6%88%90%E6%9E%9C%E7%89%A9.zip"
+        }
+      ]
     }
   ]
 }
