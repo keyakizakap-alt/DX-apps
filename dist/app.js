@@ -191,7 +191,7 @@ const context=document.modelContext;
 if(context?.registerTool){
   const lifecycle=new AbortController();
   const tools=[
-    {name:'read_editorial_review',description:'現在の原稿レビューの指摘と採用状態を取得する。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:()=>({mode:state.mode,findings:state.findings.map(({id,title,quote,evidence,status})=>({id,title,quote,evidence,status}))})},
+    {name:'read_editorial_review',description:'現在の原稿の確認の指摘と採用状態を取得する。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute:()=>({mode:state.mode,findings:state.findings.map(({id,title,quote,evidence,status})=>({id,title,quote,evidence,status}))})},
     {name:'review_sample_article',description:'架空のサンプル記事を読み込み、レビューを実行して画面に結果を表示する。既存の入力を置き換える。AI設定がある場合はOpenRouterとモデル提供元に送信する。',inputSchema:{type:'object',properties:{replaceConfirmed:{type:'boolean'}},required:['replaceConfirmed'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute:async input=>{if(!input||input.replaceConfirmed!==true)throw new Error('置き換えの確認が必要です。');if(state.busy)throw new Error('レビュー実行中です。');loadSample(true);await runReview();return{count:state.findings.length,mode:state.mode};}}
   ];
   for(const tool of tools){try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}}

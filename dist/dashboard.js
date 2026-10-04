@@ -13,7 +13,7 @@ const phaseLabels={ready:'準備中',task_completed:'作業完了',running:'進�
 const statusLabels={queued:'未着手',running:'進行中',done:'完了',awaiting:'入力待ち',failed:'要対応',cancelled:'停止'};
 let section='dashboard',deadline='',notes='',query='',center,notifications=[],desktopEnabled=false;
 const notificationsOpen=new Set();
-const names={dashboard:'ダッシュボード',workflow:'記事プロジェクト',tasks:'マイタスク',calendar:'カレンダー',knowledge:'ナレッジ',templates:'テンプレート',team:'制作工程',editor:'原稿レビュー',integrations:'外部ツール'};
+const names={dashboard:'ダッシュボード',workflow:'記事プロジェクト',tasks:'作業一覧',calendar:'カレンダー',knowledge:'参考記事',templates:'テンプレート',team:'制作工程',editor:'原稿の確認',integrations:'外部ツール'};
 function navigate(name){
   section=name;window.scrollTo({top:0,behavior:'instant'});
   $('dashboard-view').hidden=name!=='dashboard';$('section-view').hidden=['dashboard','workflow','editor'].includes(name);
@@ -59,7 +59,7 @@ async function enableNotifications(){
 }
 function agentRows(run,filter=''){
   return findTasks(filter,WORKFLOW_AGENTS).map(a=>{
-    const state=run?.agents.find(s=>s.id===a.id);return `<div class="task-action-row"><button class="task-row" data-open-agent="${a.id}"><span class="agent-avatar ${state?.status==='done'?'mint':'violet'}">${esc(a.group.slice(0,1))}</span><span><strong>${esc(a.name.replace('エージェント',''))}</strong><small>${esc(a.description)}</small></span><span class="pill ${state?.status==='done'?'mint':'lavender'}">${statusLabels[state?.status||'queued']}</span></button><button class="button secondary" data-run-task="${a.id}" ${workflowSnapshot().busy||state?.status==='done'?'disabled':''}>ここまで進める</button></div>`;
+    const state=run?.agents.find(s=>s.id===a.id);return `<div class="task-action-row"><button class="task-row" data-open-agent="${a.id}"><span class="agent-avatar ${state?.status==='done'?'mint':'violet'}">${esc(a.group.slice(0,1))}</span><span><strong>${esc(a.name.replace('エージェント',''))}</strong><small>${esc(a.description)}</small></span><span class="pill ${state?.status==='done'?'mint':'lavender'}">${a.id==='coordination'&&state?.status==='failed'?'作り直せます':statusLabels[state?.status||'queued']}</span></button><button class="button secondary" data-run-task="${a.id}" ${workflowSnapshot().busy||state?.status==='done'?'disabled':''}>ここまで進める</button></div>`;
   }).join('')||'<p class="empty-text">一致する工程はありません。</p>';
 }
 function renderSection(){
@@ -89,13 +89,13 @@ function render(){
   $('production-bars').innerHTML=groups.map(g=>{const ids=WORKFLOW_AGENTS.filter(a=>a.group===g).map(a=>a.id),n=agents.filter(a=>ids.includes(a.id)&&a.status==='done').length;return `<div><svg viewBox="0 0 32 80" aria-label="${g} ${n}/${ids.length}工程完了"><rect x="5" y="4" width="22" height="72" rx="2" fill="#f2edf6"/><rect x="5" y="${76-n/ids.length*72}" width="22" height="${n/ids.length*72}" rx="2" fill="#ec8da3"/></svg><small>${g}</small></div>`;}).join('');
   const next=nextAction(run);$('next-action-title').textContent=next.title;$('next-action-reason').textContent=next.reason;$('next-action-button').textContent=next.label;
   $('approval-count').textContent=items.length+'件';$('dashboard-approvals').innerHTML=items.length?items.map(i=>`<button class="approval-item" data-action-open="${i.action}"><span class="approval-icon">!</span><span><strong>${esc(i.title)}</strong><small>${esc(i.description)}</small></span><span class="pill pink">対応待ち</span></button>`).join(''):'<p class="empty-text">今は対応待ちの項目はありません。</p>';$('dashboard-approval-open').disabled=!items.length;
-  $('dashboard-quality').innerHTML=[['facts','内容・引用'],['style','表記・トーン'],['structure','構成・読みやすさ'],['final_check','最終の根拠照合'],['visuals','画像・権利の準備']].map(([id,label])=>{
+  $('dashboard-quality').innerHTML=[['facts','内容・引用'],['style','表記・トーン'],['structure','構成・読みやすさ'],['final_check','原稿と資料の最終確認'],['visuals','画像・権利の準備']].map(([id,label])=>{
     const a=agents.find(a=>a.id===id),count=(a?.output?.findings||[]).length;
     const text=a?.status==='done'?(id==='visuals'?'権利は人が確認':count?`要確認 ${count}件`:a.validated?.rejected?'根拠確認が必要':'検出なし'):statusLabels[a?.status||'queued'];
     return `<button class="quality-row" data-open-agent="${id}"><span>${label}</span><span class="pill ${a?.status==='done'&&!count&&!a?.validated?.rejected?'mint':count?'peach':'lavender'}">${esc(text)}</span></button>`;
   }).join('');
   const recent=(run?.audit||[]).filter(e=>['agent_completed','agent_interrupted','supervisor_required','supervisor_risk_approved','publication_package_approved'].includes(e.event)).slice(-4).reverse();
-  $('dashboard-activity').innerHTML=recent.length?recent.map(e=>{const agent=WORKFLOW_AGENTS.find(a=>a.id===e.detail?.agent);return `<div class="activity-row"><span class="activity-icon ${e.event.includes('approved')?'mint':'lavender'}">${e.event==='agent_completed'?'✓':'·'}</span><div><strong>${esc(agent?.name||'編集者の確認')}</strong><p>${esc({agent_completed:'成果物を作成しました',agent_interrupted:'工程を停止しました',supervisor_required:'人の確認を待っています',supervisor_risk_approved:'判断を記録して再開しました',publication_package_approved:'公開用データを承認しました'}[e.event])}</p></div><small>${new Date(e.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</small></div>`;}).join(''):'<p class="empty-text">制作を開始すると、チームの動きがここに届きます。</p>';
+  $('dashboard-activity').innerHTML=recent.length?recent.map(e=>{const agent=WORKFLOW_AGENTS.find(a=>a.id===e.detail?.agent);return `<div class="activity-row"><span class="activity-icon ${e.event.includes('approved')?'mint':'lavender'}">${e.event==='agent_completed'?'✓':'·'}</span><div><strong>${esc(agent?.name||'編集者の確認')}</strong><p>${esc({agent_completed:'内容を作成しました',agent_interrupted:agent?.id==='coordination'?'依頼メールはあとから作り直せます':'作業を停止しました',supervisor_required:'人の確認を待っています',supervisor_risk_approved:'判断を記録して再開しました',publication_package_approved:'公開用データを承認しました'}[e.event])}</p></div><small>${new Date(e.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</small></div>`;}).join(''):'<p class="empty-text">制作を開始すると、チームの動きがここに届きます。</p>';
   $('dashboard-team').innerHTML=WORKFLOW_AGENTS.filter(a=>['research','writing','final_check'].includes(a.id)).map(a=>`<button class="team-row" data-open-agent="${a.id}"><span class="agent-avatar lavender">${a.group.slice(0,1)}</span><span><strong>${a.name.replace('エージェント','')}</strong><small>${statusLabels[agents.find(s=>s.id===a.id)?.status||'queued']}</small></span></button>`).join('');
   center.update(run);
   if(!['dashboard','workflow','editor'].includes(section))renderSection();
