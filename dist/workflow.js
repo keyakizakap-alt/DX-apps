@@ -11,7 +11,7 @@ import {selectedKnowledge} from './knowledge-ui.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let run=null,controller=null,selected='research',busy=false,starting=false,pendingTarget=null,openReview=()=>{},approvalMode='risk';
-let demoMode=false;
+let demoMode=false,generatedSample=false;
 const statusLabel={queued:'待機',running:'実行中',done:'完了',failed:'失敗',awaiting:'入力待ち',cancelled:'停止'};
 const inputIDs=['topic','audience','goal','media','length','sources','rules','transcript','metrics','web-search'];
 export function workflowSnapshot(){return {run,busy:busy||starting,input:readInput()};}
@@ -26,13 +26,13 @@ function status(message,error=false){$('workflow-status').hidden=!message;$('wor
 function readInput(){return{topic:$('wf-topic').value.trim(),audience:$('wf-audience').value.trim(),goal:$('wf-goal').value.trim(),media:$('wf-media').value,targetLength:Number($('wf-length').value),sources:$('wf-sources').value.trim(),rules:$('wf-rules').value.trim(),transcript:$('wf-transcript').value.trim(),metrics:$('wf-metrics').value.trim(),webSearch:$('wf-web-search').checked,editorialContext:selectedKnowledge()};}
 function sample({demo=false}={}){
   if(busy||starting)return false;
-  if((run||demo&&readInput().topic)&&!confirm('企画・取材資料と現在の成果物を架空のサンプルで置き換えますか？'))return false;
+  if((run||readInput().topic)&&!confirm('企画・取材資料と現在の成果物を架空のサンプルで置き換えますか？'))return false;
   $('wf-topic').value='業務改善を一度きりで終わらせない、継続的な改善の仕組み';
   $('wf-audience').value='中小企業の経営者と業務改善担当者';
   $('wf-goal').value='取材をもとに継続的な改善の仕組みと、AIを使う際に人が確認する役割を伝える';
   $('wf-sources').value='【架空の制作サンプル】株式会社ネクストワークは企業の業務改善を支援する。この記事は架空の取材サンプルであり、実在企業の成果を示すものではない。';
   $('wf-rules').value=SAMPLE.rules;$('wf-transcript').value=SAMPLE.transcript;$('wf-metrics').value='';$('wf-web-search').checked=false;
-  demoMode=demo;pendingTarget=null;run=null;selected='research';render();status('架空のブリーフと取材資料を読み込みました。AIを使う前に、資料の取り扱いを確認してください。');$('brief-details').open=true;$('materials-details').open=true;return true;
+  demoMode=demo;generatedSample=false;pendingTarget=null;run=null;selected='research';render();status('架空のブリーフと取材資料を読み込みました。AIを使う前に、資料の取り扱いを確認してください。');$('brief-details').open=true;$('materials-details').open=true;return true;
 }
 function coreSignature(input){const {transcript,metrics,...core}=input;return JSON.stringify(core);}
 async function start(target='all'){
@@ -64,10 +64,10 @@ async function startProduction(target){
   else{run.input.transcript=input.transcript;run.input.metrics=input.metrics;}
   controller=new AbortController();busy=true;status('記事の制作を開始しています。完了した工程から成果物を確認できます。');$('brief-details').open=false;render();
   try{
-    await runWorkflow(run,{signal:controller.signal,onUpdate:()=>render(),target,...(demoMode?{executeAgent:demoAgent}:{})});
+    await runWorkflow(run,{signal:controller.signal,onUpdate:()=>{if(!agentState(run,selected)?.output){const completed=run.agents.filter(a=>a.status==='done'&&a.output);if(completed.length)selected=completed.at(-1).id;}render();},target,...(demoMode?{executeAgent:demoAgent}:{})});
     if(run.status==='task_completed'){selected=target;status('選択した作業が完了しました。成果物を確認できます。次の工程は「制作の続きを進める」から開始できます。');}
     else if(run.status==='awaiting_transcript'){status('企画と取材準備が完了しました。取材後に文字起こしを入力して再開してください。');$('brief-details').open=true;$('materials-details').open=true;}
-    else if(run.status==='awaiting_metrics')status('制作と公開準備が完了しました。修正稿を確認し、公開後の実績を入力すると振り返りを実行できます。');
+    else if(run.status==='awaiting_metrics'){selected='rewrite';status('原稿と公開準備の内容を生成しました。作業一覧から企画・校正結果・見出し・SNS文案も確認できます。公開実績を入力するまで振り返りは実行しません。');}
     else if(run.status==='completed'){if(demoMode)selected='analytics';status(demoMode?'振り返りまでのデモが完了しました。架空の実績から次の改善案を確認できます。':'記事の制作が完了しました。修正稿・公開準備・振り返りの成果物を確認してください。');}
     else if(run.status==='awaiting_review'){selected=run.reviewScope==='public'?'social':'final_check';status('資料で確認が必要な箇所が見つかりました。編集担当者が内容を確認し、判断理由を記録すると再開できます。');}
     else status(run.error||'実行を停止しました。完了済みの工程を残して再開できます。',run.status==='failed');
@@ -90,6 +90,8 @@ function render(){
   $('workflow-run').textContent=run&&!['ready','completed'].includes(run.status)?'続きから再開':run?.status==='completed'?'新しい制作を開始':'記事の制作を始める';
   if(run?.status==='completed')$('workflow-run').textContent='完了した成果物を確認';
   if(run?.status==='task_completed')$('workflow-run').textContent='制作の続きを進める';
+  $('workflow-generated-note').hidden=!generatedSample;
+  $('workflow-generate').disabled=busy||starting;
   $('workflow-demo-note').hidden=!demoMode;
   $('workflow-demo').disabled=busy||starting;
   $('workflow-demo-exit').disabled=busy||starting;
@@ -160,9 +162,10 @@ export function initWorkflow(options={}){
   $('workflow-clear').addEventListener('click',()=>{
     if(busy||starting){status('実行を停止してから資料を消去してください。',true);return;}
     if(!confirm('入力資料・成果物・資料の取り扱い設定を消去しますか？必要な記録は先に保存してください。'))return;
-    demoMode=false;run=null;approvalMode='risk';inputIDs.filter(id=>!['media','length','web-search'].includes(id)).forEach(id=>$('wf-'+id).value='');$('privacy-preview').textContent='';$('approval-reason').value='';window.dispatchEvent(new Event('data:clear'));render();status('入力と成果物を消去しました。保存済みのファイルはお手元で管理してください。');
+    demoMode=false;generatedSample=false;run=null;approvalMode='risk';inputIDs.filter(id=>!['media','length','web-search'].includes(id)).forEach(id=>$('wf-'+id).value='');$('privacy-preview').textContent='';$('approval-reason').value='';window.dispatchEvent(new Event('data:clear'));render();status('入力と成果物を消去しました。保存済みのファイルはお手元で管理してください。');
   });
   $('workflow-sample').addEventListener('click',()=>sample());
+  $('workflow-generate').addEventListener('click',()=>{if(sample()){generatedSample=true;render();void start();}});
   $('workflow-demo').addEventListener('click',()=>{if(sample({demo:true})){status('架空のデータでデモを開始します。原稿の確認後、公開用データを確認し、架空の実績を追加してください。');void start();}});
   $('workflow-demo-exit').addEventListener('click',()=>$('workflow-clear').click());
   $('workflow-demo-metrics').addEventListener('click',async()=>{if(!run?.demo||busy)return;if(!await publicationApproved(run)){status('先に公開用データを確認してください。');return;}$('wf-metrics').value=DEMO_METRICS;void start();});
