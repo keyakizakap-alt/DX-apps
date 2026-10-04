@@ -35,7 +35,7 @@ function showInput(confirmLoss = true) {
 }
 function updateConnection(emit=true) {
   const connected = aiConfigured();
-  $('connection-status').textContent = connected ? '記事の作成・校正を利用中' : '表記・数値チェック';
+  $('connection-status').textContent = connected ? '記事制作・校正が使えます' : '基本チェックが使えます';
   $('mode-description').textContent = connected ? '引用・数値、表記、記事の構成をまとめて確認します。' : '表記・数値・引用を資料と照合します。';
   $('run-review').innerHTML = '<span aria-hidden="true">✦</span> ' + (connected ? '原稿を確認する' : 'レビューを開始');
   if(emit)window.dispatchEvent(new Event('ai:configured'));
