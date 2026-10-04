@@ -1,1 +1,1 @@
-{"name":"angle-review","version":"2.1.0","private":true,"type":"module","engines":{"node":"24.x"},"scripts":{"test":"node --test tests/*.test.mjs","build":"node scripts/build.mjs","start":"node scripts/dev.mjs"}}
+{"name":"angle-review","version":"2.1.0","private":true,"type":"module","engines":{"node":"24.x"},"scripts":{"test":"node --test tests/*.test.mjs","build":"node scripts/build.mjs","start":"node scripts/dev.mjs"},"devDependencies":{"@electric-sql/pglite":"0.5.8"}}

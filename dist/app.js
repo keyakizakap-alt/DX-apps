@@ -1,3 +1,5 @@
+import {initProjectWorkspace} from './project-workspace.js';
+import {initPracticalEditing} from './practical-editing.js';
 import { SAMPLE, localReview, segments, validateAIFindings, revisedDraft, acceptanceError } from './engine.js';
 import { configureAI,aiConfigured,aiSettings,protectedInput,discoverServer } from './provider.js';
 import { runReviewTeam,applyEditorialRevision } from './agents.js';
@@ -178,6 +180,8 @@ initWorkflow({openReview:run=>{
 $('nav-workflow').addEventListener('click',()=>{if(state.busy)return;clearInterval(timer);hideNotice();showWorkflow();});
 initDashboard();
 initTransfers();
+initPracticalEditing();
+void initProjectWorkspace();
 window.addEventListener('ai:configured',()=>updateConnection(false));
 discoverServer();
 window.addEventListener('data:clear',()=>{clearInterval(timer);state={...state,findings:[],original:'',title:'',transcript:'',rules:'',isSample:false,workflowRun:null};['draft','transcript','rules','article-title','export-text','redact-terms'].forEach(id=>$(id).value='');$('article-content').textContent='';$('findings-list').textContent='';configureAI({...aiSettings(),enabled:false,consent:false,terms:''});updateInputs();updateConnection();});
