@@ -13,7 +13,7 @@ export const reviewSchema=obj({findings:arr(obj({category:{type:'string',enum:['
 const researchSchema=obj({summary:str,themes:arr(str),facts:arr(obj({claim:str,source_id:str,evidence:str})),gaps:arr(str)});
 const titlesSchema=obj({summary:str,titles:arr(str),headings:arr(str),tags:arr(str),categories:arr(str)});
 const socialSchema=obj({summary:str,posts:arr(obj({platform:str,text:str}))});
-const evidenceInstruction='根拠は入力されたTまたはRのsource_idを一つだけ指定。T4,T5など複数IDの結合は禁止。複数の文をつなげたevidenceは禁止。一つの資料行だけで説明できない場合は指摘を分けるか出さない。quoteは原稿の連続文字列を完全一致で抜き出し、evidenceはそのIDの資料の連続文字列を完全一致で抜き出す。suggestionはquote全体を置き換える文章、判断できない場合は空文字。根拠のない指摘は出さず0件でもよい。最大10件。';
+const evidenceInstruction='根拠は入力されたTまたはRのsource_idを一つだけ指定。T4,T5など複数IDの結合は禁止。複数の文をつなげたevidenceは禁止。一つの資料行だけで説明できない場合は指摘を分けるか出さない。quoteは原稿の連続文字列を完全一致で抜き出し、evidenceはそのIDの資料行のtext全体を一字も変えずにコピーする。suggestionはquote全体を置き換える文章、判断できない場合は空文字。根拠のない指摘は出さず0件でもよい。最大10件。';
 export const REVIEW_AGENTS=[
   {id:'facts',name:'事実・発言を確認',short:'事実・引用',role:'review',instruction:'取材の発言、数値、固有名詞、対象範囲、条件、断定の強さを専門に確認する。カテゴリーは引用・数値・文意を使用する。'+evidenceInstruction},
   {id:'style',name:'誤字・表記を確認',short:'表記・校正',role:'review',instruction:'入力された編集ルールに沿って表記、文体、誤記を確認する。存在しないルールを追加しない。カテゴリーは表記・文体を使用する。'+evidenceInstruction},
@@ -49,7 +49,7 @@ for(const agent of [...REVIEW_AGENTS,...WORKFLOW_AGENTS.filter(a=>reviewCategori
  agent.instruction+='\n担当範囲は'+allowed.join('・')+'のみ。他の担当の仕事や好みによる指摘を追加しない。直接引用の口調は文体統一の対象にしない。編集ルールの対象（本文・見出し・直接引用）を守る。指摘は単一IDの原文に完全一致する根拠がある場合だけ。';
  if(agent.schema){agent.schema=structuredClone(reviewSchema);agent.schema.properties.findings.items.properties.category.enum=allowed;}
 }
-WORKFLOW_AGENTS.find(a=>a.id==='writing').instruction+='\n最優先は入力transcriptとsourceMaterialの原文。構成案より一次資料を優先する。取材記事では、資料にある会社名・話者の氏名と役職・主要な発言・成果の数字・対象範囲・期間・例外条件を本文に具体的に残す。サンプルの架空企業もその名前のまま記事にする。原文にない一般論や抽象的な解説で取材内容を置き換えない。資料に答えがある事項を要確認にしない。';
+WORKFLOW_AGENTS.find(a=>a.id==='writing').instruction+='\n最優先は入力transcriptとsourceMaterialの原文。構成案より一次資料を優先する。取材記事では、資料にある会社名・話者の氏名と役職・主要な発言・成果の数字・対象範囲・期間・例外条件を本文に具体的に残す。サンプルの架空企業もその名前のまま記事にする。原文にない一般論や抽象的な解説で取材内容を置き換えない。資料に答えがある事項を要確認にしない。直接引用は原文の連続文字列をコピーし、短縮・言い換えた文章を引用符で囲まない。数字を最大・最低・全体の値に拡大解釈しない。';
 
 export function mergeReviewResults(results) {
   const findings=[],seen=new Set();let rejected=0;

@@ -143,7 +143,7 @@ function renderArtifact(){
   $('artifact-edit').disabled=busy||starting||!canEdit()||selected==='archive'||!editableFields(item?.output).length;
   $('artifact-regenerate').disabled=busy||starting||!canEdit()||!item?.output||run?.status==='budget_exceeded';
   $('artifact-download').disabled=!item?.output;$('artifact-copy').disabled=!item?.output;
-  $('artifact-regenerate').textContent=['writing','rewrite'].includes(selected)?'全文を作り直す':'この内容を作り直す';
+  $('artifact-regenerate').textContent=selected==='rewrite'?'修正案をまとめ直す':selected==='writing'?'全文を作り直す':'この内容を作り直す';
   $('artifact-run').disabled=busy||starting||!canEdit()||item?.status==='done'||run?.status==='budget_exceeded';$('artifact-run').textContent=item?.status==='done'?'この作業は完了しています':'この作業まで進める';
   if(!item?.output){
     $('artifact-content').innerHTML=`<div class="artifact-empty"><span class="artifact-empty-icon" aria-hidden="true">▤</span><h3>${item?.status==='awaiting'?'必要な資料を待っています':item?.status==='running'?'内容を作成しています':item?.status==='failed'?'この工程で停止しました':'ここに作成した内容が表示されます'}</h3><p>${esc(item?.error||agent.description)}</p><p>${item?.status==='awaiting'&&selected==='transcript'?'取材メモ・文字起こしを資料欄に追加して、続きから再開してください。':item?.status==='failed'&&selected==='coordination'?'依頼メールはあとから作り直せます。他の作業と記事の制作は続けられます。':item?.status==='failed'?'完了した作業は残っています。続きから再開できます。':'企画・取材資料を入力して、記事の制作を始めてください。'}</p></div>`;return;

@@ -27,3 +27,17 @@ test('short articles reserve fewer output tokens and specialist schemas reject c
  assert.deepEqual(WORKFLOW_AGENTS.find(a=>a.id==='style').schema.properties.findings.items.properties.category.enum,['表記','文体']);
  assert.equal(WORKFLOW_AGENTS.find(a=>a.id==='rewrite').role,'local');
 });
+test('unsupported extrema are not proposed even with a valid literal source',()=>{
+ const result=validateAIFindings([{category:'数値',severity:'check',title:'数字',explanation:'取材',quote:'50%',source_id:'T1',evidence:'ある支援先で30%削減した。',suggestion:'最大30%'}],'50%削減。','ある支援先で30%削減した。','');
+ assert.equal(result.findings.length,0);assert.deepEqual(result.rejectionReasons,{expanded_claim:1});
+});
+test('server limits citation IDs and evidence to the masked task input, without changing privacy policy',async()=>{
+ const {createWorker}=await import('../server/worker.mjs');
+ const worker=createWorker({},WORKFLOW_AGENTS),origin='https://citations.example.test',previous=fetch;let payload;
+ globalThis.fetch=async(url,options)=>{payload=JSON.parse(options.body);return Response.json({choices:[]});};
+ try{
+ const r=await worker.fetch(new Request(origin+'/api/agents',{method:'POST',headers:{Origin:origin,'oai-authenticated-user-id':'citation-test','oai-authenticated-user-email':'user@example.test','Content-Type':'application/json','X-Data-Classification':'internal','X-Data-Consent':'confirmed','X-Redact-Pii':'true'},body:JSON.stringify({agent:'style',model:'openai/gpt-4.1-mini',input:{draft:'原稿',transcript:[{id:'T1',text:'連絡先は a@example.test。'}],rules:[{id:'R1',text:'Web → ウェブ'}]},web:false})}),{SITE_ORIGIN:origin,ALLOWED_USER_EMAILS:'user@example.test',OPENROUTER_API_KEY:'sk-or-v1-citation-test-dummy'});
+ assert.equal(r.status,200);const props=payload.response_format.json_schema.schema.properties.findings.items.properties;
+ assert.deepEqual(props.source_id.enum,['T1','R1']);assert.equal(props.quote.enum,undefined);assert.equal(props.suggestion.enum,undefined);assert.deepEqual(props.evidence.enum,['連絡先は ［メールアドレス］。','Web → ウェブ']);assert.equal(payload.provider.zdr,true);assert.equal(JSON.stringify(payload).includes('a@example.test'),false);
+ }finally{globalThis.fetch=previous;}
+});

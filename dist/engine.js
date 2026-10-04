@@ -69,18 +69,22 @@ export function validateAIFindings(items, draft, transcript, rules) {
   if (!Array.isArray(items) || items.length > 40) throw new Error('AIの結果形式を確認できませんでした。もう一度実行してください。');
   const sources = [...segments(transcript), ...segments(rules, 'R')];
   let rejected = 0;
+  const rejectionReasons={};
+  const reject=reason=>{rejected++;rejectionReasons[reason]=(rejectionReasons[reason]||0)+1;};
   const findings = [];
   for (const item of items) {
-    if (!item || typeof item !== 'object' || typeof item.quote !== 'string' || !item.quote || !draft.includes(item.quote) || typeof item.title !== 'string' || typeof item.explanation !== 'string' || typeof item.suggestion !== 'string') { rejected++; continue; }
-    if (!['引用', '数値', '表記', '文意', '構成', '文体'].includes(item.category) || !['check', 'style'].includes(item.severity)) { rejected++; continue; }
-    if (item.quote.length > 2000 || item.title.length > 150 || item.explanation.length > 1500 || item.suggestion.length > 3000) { rejected++; continue; }
+    if (!item || typeof item !== 'object' || typeof item.quote !== 'string' || !item.quote || !draft.includes(item.quote) || typeof item.title !== 'string' || typeof item.explanation !== 'string' || typeof item.suggestion !== 'string') { reject('invalid_finding'); continue; }
+    if (!['引用', '数値', '表記', '文意', '構成', '文体'].includes(item.category) || !['check', 'style'].includes(item.severity)) { reject('invalid_category'); continue; }
+    if (item.quote.length > 2000 || item.title.length > 150 || item.explanation.length > 1500 || item.suggestion.length > 3000) { reject('invalid_length'); continue; }
     const source = sources.find(s => s.id === item.source_id);
     // A citation is usable only when both its ID and its literal text are real.
-    if (!source || typeof item.evidence !== 'string' || !item.evidence || !source.text.includes(item.evidence)) { rejected++; continue; }
+    if(!source){reject('unknown_source');continue;}
+    if (typeof item.evidence !== 'string' || !item.evidence || !source.text.includes(item.evidence)) { reject('evidence_mismatch'); continue; }
+    if(['最大','最低','必ず','すべて','全て'].some(term=>item.suggestion.includes(term)&&!item.quote.includes(term)&&!source.text.includes(term))){reject('expanded_claim');continue;}
     if (findings.some(f => f.quote === item.quote && f.category === item.category)) continue;
     findings.push(bind({ category: item.category, title: item.title, explanation: item.explanation, quote: item.quote, suggestion: item.suggestion, evidence: item.evidence, sourceId: source.id, sourceType: source.id.startsWith('R') ? 'rule' : 'transcript', severity: item.severity, id: `ai-${findings.length}` }, draft));
   }
-  return { findings, rejected };
+  return { findings, rejected, rejectionReasons };
 }
 
 export function revisedDraft(original, findings) {
