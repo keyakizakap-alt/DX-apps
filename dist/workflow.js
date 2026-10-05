@@ -50,7 +50,8 @@ async function startProduction(target){
   if(workspaceState().available&&!workspaceState().user&&!demoMode){pendingTarget=target;$('workspace-login').click();return;}
   if(run?.status==='budget_exceeded'){status(run.error,true);return;}
   const raw=readInput(),missing=[['topic','企画テーマ'],['audience','想定読者'],['goal','記事の目的']].filter(([key])=>!raw[key]);
-  if(missing.length){status(`${missing.map(([,label])=>label).join('・')}を入力してください。入力後、制作を開始できます。`);$('brief-details').open=true;$('wf-'+missing[0][0]).focus();return;}
+  ['topic','audience','goal'].forEach(key=>$('wf-'+key).removeAttribute('aria-invalid'));
+  if(missing.length){missing.forEach(([key])=>$('wf-'+key).setAttribute('aria-invalid','true'));status(`${missing.map(([,label])=>label).join('・')}を入力してください。入力後、制作を開始できます。`);$('brief-details').open=true;$('wf-'+missing[0][0]).focus();return;}
   if(!demoMode){status('制作を利用できるか確認しています。');render();await discoverServer();}
   if(!demoMode&&!aiSettings().serverReady){status(connectionMessage());$('workflow-reconnect').hidden=false;return;}
   if(!demoMode&&(!aiConfigured()||!aiSettings().consent)){pendingTarget=target;status('資料の取り扱いを確認すると、選択した制作を開始します。');$('workflow-settings').click();return;}
@@ -82,6 +83,7 @@ async function startProduction(target){
 }
 function render(){
   document.querySelector('.project-progress').classList.toggle('not-started',!run);
+  document.querySelector('.workflow-grid').hidden=!run;
   const knowledge=selectedKnowledge();$('workflow-references').innerHTML=`<strong>参考記事${knowledge?'：'+knowledge.references.length+'本を選択':'を活かす'}</strong><p>${knowledge?knowledge.references.map(r=>esc(r.title)).join('<br>'):'過去記事から、切り口・構成・分類のヒントを選べます。'}</p><button class="button secondary" data-section="knowledge" ${busy?'disabled':''}>過去記事を探す</button>`;
   const agents=run?.agents||WORKFLOW_AGENTS.map(a=>({id:a.id,status:'queued',output:null}));
   const completed=agents.filter(a=>a.status==='done').length;
@@ -113,7 +115,7 @@ function render(){
   inputIDs.forEach(id=>$('wf-'+id).disabled=busy||starting||demoMode||!canEdit());
   $('workflow-connection').textContent=demoMode?'架空のデータで体験中（外部AIへの送信なし）':aiSettings().serverReady?(aiConfigured()?'資料の取り扱いを確認済み':'資料の取り扱いを確認してください'):'制作を利用できるか確認してください';
   $('workflow-reconnect').disabled=busy||starting;
-  $('workflow-action-hint').textContent=run?.status==='awaiting_transcript'?'取材メモ・文字起こしを貼り付けるか読み込んで、続きから再開してください。':run?.status==='awaiting_metrics'?'公開後の実績は企画・取材資料から追加できます。':'取材がまだでも、企画と取材準備から始められます。';
+  $('workflow-action-hint').textContent=busy?'記事を作成しています。完了した内容は下の作業一覧で確認できます。':run?.status==='awaiting_transcript'?'取材メモを追加すると、記事の下書きを作成できます。':run?.status==='awaiting_review'?'原稿と取材資料を照合し、確認した内容を記録してください。':run?.status==='awaiting_metrics'?'記事の公開後にPVなどを入力すると、振り返りを作成できます。':run?.status==='completed'?'原稿・投稿案・振り返りを、下の作業一覧から確認できます。':run?'完了した内容を残して、続きの作業を進めます。':'テーマ・読者・目的を入力して、下のボタンから始めましょう。取材資料は後から追加できます。';
   let html='';
   for(const group of [...new Set(WORKFLOW_AGENTS.map(a=>a.group))]){
     const members=WORKFLOW_AGENTS.filter(a=>a.group===group),groupProgress=progress.stages.find(s=>s.group===group);
@@ -174,6 +176,7 @@ export function initWorkflow(options={}){
   const actionRow=$('workflow-run').closest('.workflow-actions');
   const positionActions=()=>($('brief-details').open?$('brief-action-slot'):$('workflow-action-slot')).append(actionRow);
   $('brief-details').addEventListener('toggle',positionActions);positionActions();
+  ['topic','audience','goal'].forEach(id=>$('wf-'+id).addEventListener('input',()=>{if($('wf-'+id).value.trim())$('wf-'+id).removeAttribute('aria-invalid');}));
   ['transcript','metrics'].forEach(id=>$('wf-'+id).addEventListener('input',()=>{if(run?.status===(id==='transcript'?'awaiting_transcript':'awaiting_metrics'))$('workflow-run').textContent=$('wf-'+id).value.trim()?'続きから再開':id==='transcript'?'取材メモを追加する':'公開後の実績を追加する';}));
   document.addEventListener('click',event=>document.querySelectorAll('#workflow-view .action-menu[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;}));
   document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('#workflow-view .action-menu[open]').forEach(menu=>{menu.open=false;menu.querySelector('summary').focus();});});
