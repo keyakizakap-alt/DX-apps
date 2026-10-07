@@ -52,7 +52,7 @@ async function startProduction(target){
   const raw=readInput(),missing=[['topic','企画テーマ'],['audience','想定読者'],['goal','記事の目的']].filter(([key])=>!raw[key]);
   ['topic','audience','goal'].forEach(key=>$('wf-'+key).removeAttribute('aria-invalid'));
   if(missing.length){missing.forEach(([key])=>$('wf-'+key).setAttribute('aria-invalid','true'));status(`${missing.map(([,label])=>label).join('・')}を入力してください。入力後、制作を開始できます。`);$('brief-details').open=true;$('wf-'+missing[0][0]).focus();return;}
-  if(!demoMode){status('制作を利用できるか確認しています。');render();await discoverServer();}
+  if(!demoMode){status('制作を利用できるか確認しています。');render();await discoverServer({verify:true});}
   if(!demoMode&&!aiSettings().serverReady){status(connectionMessage());$('workflow-reconnect').hidden=false;return;}
   if(!demoMode&&(!aiConfigured()||!aiSettings().consent)){pendingTarget=target;status('資料の取り扱いを確認すると、選択した制作を開始します。');$('workflow-settings').click();return;}
   let input;try{input=demoMode?{...raw,webSearch:false,editorialContext:null}:protectedInput(raw);}catch(e){status(e.message,true);return;}
