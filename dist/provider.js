@@ -3,7 +3,7 @@ import { protectData } from './security.js';
 const config = { model:'openai/gpt-4.1-mini', reviewModel:'', researchModel:'',classification:'internal',redact:true,terms:'',consent:false,enabled:false };
 let serverReady=false;
 let connection='checking',discovery=null;
-const connectionMessages={checking:'制作を利用できるか確認しています。',missing_key:'制作の準備がまだ整っていません。運営者にお問い合わせください。入力した資料はそのまま保持しています。',invalid_key:'制作を利用できません。運営者にお問い合わせください。入力した資料はそのまま保持しています。',model_not_configured:'制作を利用できません。運営者にお問い合わせください。',credit_required:'制作サービスの利用枠を運営者に確認してください。',rate_limited:'制作サービスが混み合っています。少し待って、もう一度お試しください。',unreachable:'制作を利用できるか確認できませんでした。もう一度お試しください。',ready:'制作を利用できます。',not_checked:'制作の準備を確認しました。'};
+const connectionMessages={checking:'制作を利用できるか確認しています。',missing_key:'制作の準備がまだ整っていません。運営者にお問い合わせください。入力した資料はそのまま保持しています。',invalid_key:'制作を利用できません。AI接続用の認証情報を確認してください。',model_not_configured:'制作に使うAIモデルが設定されていません。運営者にお問い合わせください。',credit_required:'制作サービスの利用枠を運営者に確認してください。',rate_limited:'制作サービスが混み合っています。少し待って、もう一度お試しください。',provider_auth_failed:'AI接続用の認証情報を確認できませんでした。',provider_credit_required:'AIサービスの利用枠を確認してください。',provider_policy_unavailable:'現在のデータ保護条件を満たすAI接続先が見つかりません。モデル設定を確認してください。',provider_model_unavailable:'設定されたAIモデルを現在利用できません。別の許可モデルを設定してください。',provider_route_unavailable:'設定されたAIモデルの接続先を現在利用できません。別の許可モデルを設定してください。',provider_access_denied:'AIサービス側でアクセスが拒否されました。OpenRouterの権限・プライバシー設定を確認してください。',provider_request_rejected:'AIサービスが接続テストを受け付けませんでした。モデル設定を確認してください。',provider_unavailable:'AIサービスへ接続できませんでした。少し待って再試行してください。',provider_rate_limited:'AIサービスが混み合っています。少し待って再試行してください。',unreachable:'制作を利用できるか確認できませんでした。もう一度お試しください。',ready:'制作を利用できます。',not_checked:'制作の準備を確認しました。'};
 export function connectionMessage(){return connectionMessages[connection]||connectionMessages.unreachable;}
 export function configureAI(next) {
   for (const field of ['model','reviewModel','researchModel']) config[field] = String(next[field] || '').trim();
@@ -19,7 +19,7 @@ export function aiSettings() { return { model:config.model,reviewModel:config.re
 export function protectedInput(input){return protectData(input,config);}
 export async function discoverServer({verify=false}={}){
   if(discovery){await discovery;return verify?discoverServer({verify:true}):{serverReady,connection};}
-  discovery=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+  discovery=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),verify?30000:12000);
     try{const r=await fetch(verify?'/api/connection':'/api/status',{method:verify?'POST':'GET',cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error('connection');const status=await r.json();serverReady=status.configured===true;connection=status.connection||(serverReady?'not_checked':'missing_key');if(typeof status.defaultModel==='string'&&status.defaultModel)config.model=status.defaultModel;}
     catch{serverReady=false;connection='unreachable';}finally{clearTimeout(timer);globalThis.window?.dispatchEvent(new Event('ai:configured'));}
     return {serverReady,connection};
