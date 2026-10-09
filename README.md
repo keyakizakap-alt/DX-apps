@@ -181,8 +181,27 @@ Vercel の `LOGIN_ALLOWED_EMAILS` と両方に登録された利用者だけが�
 | S03 | `model_not_configured`：使えるモデルが設定されていない | `ALLOWED_MODELS` を確認 |
 | S04 | `credit_required` / `provider_credit_required`：残高またはキーの利用上限が不足（ログの `affordableTokens` は残りでまかなえる出力量） | OpenRouterでクレジットを追加するか、APIキーの利用上限を引き上げる |
 | S05 | `provider_auth_failed`：OpenRouterがキーを受け付けない | キーの有効・無効、権限を確認 |
-| S06 | `provider_policy_unavailable`：データを保持しない条件（ZDR等）を満たす提供元がない | `ALLOWED_MODELS` を条件を満たすモデルに変更 |
+| S06 | `provider_policy_unavailable`：データを保持しない条件（ZDR等）を満たす提供元がない。Groq使用時は `GROQ_ZDR_CONFIRMED=true` が未設定 | `ALLOWED_MODELS` を条件を満たすモデルに変更。Groqでは Data Controls でZDRを有効にしてから `GROQ_ZDR_CONFIRMED=true` を設定 |
 | S07 | `provider_model_unavailable`：指定モデルが利用できない | 時間をおいて再確認するか、モデルを変更 |
 | S08 | `provider_route_unavailable`：モデルの提供元に接続できない | 時間をおいて再確認するか、モデルを変更 |
 | S09 | `provider_access_denied`：OpenRouter側でアクセスが拒否された | OpenRouterの権限・プライバシー設定を確認 |
 | S10 | `provider_request_rejected`：リクエストが受け付けられない | モデル設定と入力量を確認 |
+
+## Groqで動かす（試作・2026-10-09）
+
+OpenRouterの代わりにGroqを使えます。Vercelの環境変数 `AI_PROVIDER=groq` で切り替え、未設定ならOpenRouterのままです。
+
+### 設定手順
+1. Groqのコンソールでアカウントを作り、APIキーを発行する。
+2. コンソールの **Data Controls** で Zero Data Retention（ZDR）を有効にする。
+3. Vercelに `AI_PROVIDER=groq`、`GROQ_API_KEY`、`GROQ_ZDR_CONFIRMED=true` を設定してRedeployする。`GROQ_ZDR_CONFIRMED` がないと資料を送らず停止する（コードS06）。
+
+### 仕様と制約
+- 既定のモデルは `openai/gpt-oss-120b`（スキーマを厳密に守る出力に対応）。`GROQ_MODELS` で変更できる。推論の量は `low` に抑える。
+- 無料枠は1分あたりのトークン数が小さい（gpt-oss-120bで8,000、非公式の情報源で確認）。そのため出力の上限を4,000に抑え（`GROQ_MAX_OUTPUT_TOKENS` で変更可）、混雑時はGroqが指定する待ち時間（45秒以内）だけ待って1回だけ再試行する。
+- 公開情報の検索（Web検索）は、Tavilyのキー（`TAVILY_API_KEY`）を設定すると使える。未設定でチェックを入れると、外すよう案内して止まる。
+  - 検索するのは「テーマを調べる」工程だけで、資料の分類が「公開情報」のときに限る。Tavilyに送るのは**記事のテーマだけ**で、取材の文字起こしや資料本文は送らない。
+  - 結果は上位4件、各600文字まで。AIが根拠にした一節が検索結果の本文に実際に含まれる場合だけ、事実として残す。
+  - Tavilyの無料枠は月1,000クレジット（基本検索1回＝1クレジット、公式）。クレジットカード不要。
+  - Tavilyのアカウント設定 **「Allow Use of Query Data」をオフ**にすること（オンだと検索内容がサービス改善に使われうる）。Tavilyは保存ゼロ（ZDR）を公表していないため、テーマ自体が非公開情報の場合は検索を使わないこと。
+- 日本語の記事の品質はOpenRouterのモデルと異なる可能性がある。実際の資料で品質を確認してから本番に使うこと。

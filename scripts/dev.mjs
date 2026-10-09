@@ -10,6 +10,6 @@ http.createServer(async(req,res)=>{
   const body=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>750000){res.writeHead(413);res.end();return;}body.push(chunk);}
   const headers=new Headers(req.headers);headers.set('oai-authenticated-user-id','local-developer');headers.set('oai-authenticated-user-email','local@development.invalid');
   const request=new Request(origin+req.url,{method:req.method,headers,body:['GET','HEAD'].includes(req.method)?undefined:Buffer.concat(body)});
-  const response=await worker.fetch(request,{ALLOWED_USER_EMAILS:'local@development.invalid',SITE_ORIGIN:origin,OPENROUTER_API_KEY:process.env.OPENROUTER_API_KEY});
+  const response=await worker.fetch(request,{ALLOWED_USER_EMAILS:'local@development.invalid',SITE_ORIGIN:origin,OPENROUTER_API_KEY:process.env.OPENROUTER_API_KEY,AI_PROVIDER:process.env.AI_PROVIDER,GROQ_API_KEY:process.env.GROQ_API_KEY,GROQ_MODELS:process.env.GROQ_MODELS,GROQ_ZDR_CONFIRMED:process.env.GROQ_ZDR_CONFIRMED,GROQ_MAX_OUTPUT_TOKENS:process.env.GROQ_MAX_OUTPUT_TOKENS,TAVILY_API_KEY:process.env.TAVILY_API_KEY});
   res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));
 }).listen(4173,'127.0.0.1',()=>console.log('Local preview: '+origin+' (development identity only)'));
