@@ -53,6 +53,9 @@ await page.locator('[data-notice="0"]').click();
 assert.equal(await page.locator('#approval-panel').isVisible(),true);
 assert.equal(await page.locator('#notification-badge').isVisible(),false);
 assert.equal(await page.locator('#workflow-wordpress').isEnabled(),false);
+// A rejected reason is explained next to the button, not only in the page status far above it.
+await page.locator('#approval-reason').fill('確認済み');await page.locator('#approval-submit').click();
+await page.waitForFunction(()=>!document.getElementById('approval-message').hidden&&document.getElementById('approval-message').textContent.includes('10文字以上'));
 await page.locator('#approval-reason').fill('最終照合の除外された指摘と取材の根拠を確認し、再開を承認しました');
 await page.locator('#approval-submit').click();
 await page.waitForFunction(()=>document.getElementById('workflow-phase').textContent==='実績待ち');
