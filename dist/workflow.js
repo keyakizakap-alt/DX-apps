@@ -111,6 +111,8 @@ function render(){
   $('workflow-generate').disabled=busy||starting||!canEdit();
   $('workflow-demo-note').hidden=!demoMode;
   $('workflow-demo').disabled=busy||starting||!canEdit();
+  // The demo cannot start during a run; hiding it keeps the mobile action bar to two buttons.
+  $('workflow-demo').hidden=busy||starting;
   $('workflow-demo-exit').disabled=busy||starting;
   $('workflow-demo-metrics').hidden=!demoMode||run?.status!=='awaiting_metrics';
   $('workflow-demo-metrics').disabled=busy||!run?.approvals?.publication;
