@@ -45,6 +45,7 @@ Node.js 24を推奨。依存パッケージの追加インストールは不要�
 - `npm start`: http://127.0.0.1:4173 の開発用プレビュー。開発サーバーだけがローカルの仮の本人識別を付与する。外部公開しない。
 - `npm test`: 根拠検証、修正重複、情報管理、認証、同一生成元、HOTL、監督承認、再開、改ざん検知の回帰確認。
 - `npm run build`: Cloudflare Workers互換の `dist/server/index.js` を生成。
+- `npm run test:browser`: ビルド後に開発サーバーを起動し、`tests/*browser.mjs` をすべて実行。初回は `npx playwright-core install chromium` でブラウザを用意する。GitHub Actions（`.github/workflows/ci.yml`）がPRと `main` へのpushごとに、依存関係の脆弱性確認・`npm test`・ブラウザテストを実行する。
 
 Vercel版はパスワードなし。Sites版は従来の本人限定アクセスと `ALLOWED_USER_EMAILS` を使用。環境設定は `.env.example` を参照。実キーをGitHubにコミットしない。GitHubのリポジトリ直下をソースの保存先とする。
 
@@ -188,3 +189,21 @@ AIの利用料金は運営者のOpenRouterアカウントに発生するため�
 - 通知ジョブの `CRON_SECRET` は、比較にかかる時間から秘密値を推測できない方法で照合する。
 
 `ALLOW_PUBLIC_AI=true` を設定すると、従来どおりログインなしでAIを使える。誰でも運営者の費用でAIを実行できるため、本番では設定しないこと。
+
+## 画面のエラー表示と運営者向けコード（2026-10-09）
+
+利用者向けの表示は、技術用語を使わずに「何が起きたか」「どうすればよいか」を伝えます。運営者の対応が必要なものには「（コード：S04）」のようなコードを付けます。利用者から問い合わせを受けたら、次の表で原因を確認してください。サーバーのログにも同じ原因が `code` として記録されます。
+
+| コード | 原因（ログの `code`） | 運営者の対応 |
+|---|---|---|
+| S01 | `missing_key` / `openrouter_key_required`：OpenRouterのAPIキーが未設定 | Vercelの環境変数 `OPENROUTER_API_KEY` を設定し、Redeploy |
+| S02 | `invalid_key`：APIキーの形式が違う、または無効 | OpenRouterで有効なキーを発行し直して設定 |
+| S03 | `model_not_configured`：使えるモデルが設定されていない | `ALLOWED_MODELS` を確認 |
+| S04 | `credit_required` / `provider_credit_required`：残高またはキーの利用上限が不足（ログの `affordableTokens` は残りでまかなえる出力量） | OpenRouterでクレジットを追加するか、APIキーの利用上限を引き上げる |
+| S05 | `provider_auth_failed`：OpenRouterがキーを受け付けない | キーの有効・無効、権限を確認 |
+| S06 | `provider_policy_unavailable`：データを保持しない条件（ZDR等）を満たす提供元がない | `ALLOWED_MODELS` を条件を満たすモデルに変更 |
+| S07 | `provider_model_unavailable`：指定モデルが利用できない | 時間をおいて再確認するか、モデルを変更 |
+| S08 | `provider_route_unavailable`：モデルの提供元に接続できない | 時間をおいて再確認するか、モデルを変更 |
+| S09 | `provider_access_denied`：OpenRouter側でアクセスが拒否された | OpenRouterの権限・プライバシー設定を確認 |
+| S10 | `provider_request_rejected`：リクエストが受け付けられない | モデル設定と入力量を確認 |
+| S11 | `login_not_configured`：ログイン機能（Supabase）が未設定のため、AIを実行しない | 「本番運用のセキュリティ設定」の手順でSupabaseを設定 |

@@ -32,3 +32,6 @@
 
 .project-progress.not-started{display:none}
 @media(max-width:650px){#workflow-view .workflow-intro{margin:14px 0}.workflow-brief>summary{position:relative;flex-direction:row;align-items:center;padding-right:44px}.workflow-brief>summary:after{position:absolute;right:20px;top:20px}}
+/* Keep the progress card clear of the fixed header (and the mobile nav row) when production starts. */
+.project-progress{scroll-margin-top:96px}
+@media(max-width:650px){.project-progress{scroll-margin-top:126px}}

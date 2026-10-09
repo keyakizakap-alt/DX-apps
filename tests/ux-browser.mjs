@@ -1,6 +1,6 @@
 import {createRequire} from 'node:module';import assert from 'node:assert/strict';
-const {chromium}=createRequire(import.meta.url)('/opt/codex/runtimes/cua/lib/node_modules/playwright-core');
-const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+const {chromium}=createRequire(import.meta.url)('playwright-core');
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox']});
 try{
  const p=await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true}),calls=[],errors=[];let failInvitation=true;p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
  await p.route('**/api/auth/status',r=>r.fulfill({json:{available:false,user:null}}));await p.route('**/api/{status,connection}',r=>r.fulfill({json:{configured:true,connection:'ready',defaultModel:'openai/gpt-4.1-mini'}}));

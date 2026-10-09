@@ -6,7 +6,7 @@ import {WORKFLOW_AGENTS} from '../dist/agents.js';
 test('classification, consent and credential detection deny egress',()=>{
   assert.throws(()=>protectData('資料',{classification:'restricted',consent:true}),/送信できません/);
   assert.throws(()=>protectData('資料',{classification:'internal',consent:false}),/確認/);
-  assert.throws(()=>protectData('-----BEGIN PRIVATE KEY-----',{classification:'public',consent:true}),/認証情報/);
+  assert.throws(()=>protectData('-----BEGIN PRIVATE KEY-----',{classification:'public',consent:true}),/パスワードやアクセス用の鍵/);
   assert.equal(redactText('山田さん a@example.com 090-1234-5678','山田さん'),'［非公開情報1］ ［メールアドレス］ ［電話番号］');
 });
 test('concurrent audit entries form a valid chain and tampering is detectable',async()=>{

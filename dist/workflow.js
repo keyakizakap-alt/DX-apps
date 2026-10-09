@@ -72,6 +72,7 @@ async function startProduction(target){
   if(!run||replace){run=createRun(input);run.demo=demoMode;await audit(run,demoMode?'demo_started':'data_egress_confirmed',demoMode?{simulated:true,externalRequests:false}:{classification:aiSettings().classification,masking:aiSettings().redact,webSearch:input.webSearch});}
   else{run.input.transcript=input.transcript;run.input.metrics=input.metrics;}
   controller=new AbortController();busy=true;status('記事の制作を開始しています。完了した工程から作成した内容を確認できます。');$('brief-details').open=false;render();
+  document.querySelector('.project-progress').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
   try{
     await runWorkflow(run,{signal:controller.signal,onUpdate:()=>{if(!agentState(run,selected)?.output){const completed=run.agents.filter(a=>a.status==='done'&&a.output);if(completed.length)selected=completed.at(-1).id;}render();},target,...(demoMode?{executeAgent:demoAgent}:{})});
     if(run.status==='task_completed'){selected=target;status('選択した作業が完了しました。作成した内容を確認できます。次の工程は「制作の続きを進める」から開始できます。');}
@@ -92,7 +93,8 @@ function render(){
   $('wf-calls').textContent=run?.attempts||0;
   const progress=productionProgress(run),next=nextAction(run);
   $('project-progress-title').textContent=next.title;
-  $('project-progress-description').textContent=next.reason;
+  const working=busy&&run?.agents.find(a=>a.status==='running');
+  $('project-progress-description').textContent=working?`いま「${WORKFLOW_AGENTS.find(a=>a.id===working.id)?.name||'作業'}」を進めています（${completed} / ${WORKFLOW_AGENTS.length} 完了）`:next.reason;
   $('project-progress-percent').textContent=progress.percent+'%';
   $('project-progress-bar').value=progress.completed;
   $('project-stages').innerHTML=progress.stages.map((stage,index)=>`<button class="project-stage ${stage.state}" data-progress-agent="${stage.firstAgent}"><span class="project-stage-index">${stage.state==='done'?'✓':index+1}</span><strong>${esc(stage.group)}</strong><span class="project-stage-label">${esc(stage.label)}</span><progress value="${stage.done}" max="${stage.total}" aria-label="${esc(stage.group)}の進み具合"></progress><small>${stage.done} / ${stage.total} 作業</small></button>`).join('');
@@ -109,6 +111,8 @@ function render(){
   $('workflow-generate').disabled=busy||starting||!canEdit();
   $('workflow-demo-note').hidden=!demoMode;
   $('workflow-demo').disabled=busy||starting||!canEdit();
+  // The demo cannot start during a run; hiding it keeps the mobile action bar to two buttons.
+  $('workflow-demo').hidden=busy||starting;
   $('workflow-demo-exit').disabled=busy||starting;
   $('workflow-demo-metrics').hidden=!demoMode||run?.status!=='awaiting_metrics';
   $('workflow-demo-metrics').disabled=busy||!run?.approvals?.publication;

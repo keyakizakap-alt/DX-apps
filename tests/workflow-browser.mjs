@@ -1,8 +1,8 @@
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const require=createRequire(import.meta.url);const {chromium}=require('/opt/codex/runtimes/cua/lib/node_modules/playwright-core');
-const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+const require=createRequire(import.meta.url);const {chromium}=require('playwright-core');
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox']});
 const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
 await context.addInitScript(()=>{window.deliveredNotices=[];class FakeNotification{static permission='granted';static async requestPermission(){return 'granted';}constructor(title,options){window.deliveredNotices.push({title,...options});}close(){}}Object.defineProperty(window,'Notification',{value:FakeNotification});});
 const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
@@ -17,6 +17,7 @@ function fixture(id){
   return {summary:'専門エージェントの提案',content:'確認事項をまとめた下書きです。',items:['公開前に確認する']};
 }
 await page.route('**/api/agents',async r=>{calls++;const body=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({model:body.model,choices:[{finish_reason:'stop',message:{content:JSON.stringify(fixture(body.agent))}}],usage:{prompt_tokens:100,completion_tokens:200,cost:0.001}})});});
+await page.route('**/api/{status,connection}',r=>r.fulfill({json:{configured:true,connection:'ready',defaultModel:'openai/gpt-4.1-mini'}}));
 await page.goto('http://127.0.0.1:4173/');
 await page.locator('#enable-notifications').click();
 await page.locator('#nav-workflow').click();
@@ -27,7 +28,8 @@ await page.locator('#data-classification').selectOption('restricted');
 await page.locator('#data-consent').check();
 await page.getByRole('button',{name:'設定を適用',exact:true}).click();
 await page.locator('#workflow-run').click();
-assert.ok((await page.locator('#workflow-status').textContent()).includes('送信できません'));
+// The refusal follows the asynchronous connection check, so wait for it instead of reading immediately.
+await page.waitForFunction(()=>document.getElementById('workflow-status').textContent.includes('送信できません'));
 assert.equal(calls,0);
 await page.locator('#workflow-settings').click();await page.locator('#data-classification').selectOption('internal');await page.getByRole('button',{name:'設定を適用',exact:true}).click();
 await page.locator('#wf-sources').fill('架空の資料。担当者の連絡先 sample@example.com。');
@@ -37,7 +39,8 @@ await page.locator('[data-close="privacy-dialog"]').click();
 await page.locator('#workflow-run').click();
 await page.locator('#approval-panel').waitFor({state:'visible'});
 await page.waitForFunction(()=>document.getElementById('workflow-phase').textContent==='人の確認待ち');
-assert.equal(calls,11);
+// The rewrite step is applied locally from verified findings (no AI call), so 10 specialists run before review.
+assert.equal(calls,10);
 assert.equal(await page.locator('#notification-badge').textContent(),'1');
 assert.equal(await page.evaluate(()=>window.deliveredNotices.length),1);
 assert.ok(!(await page.evaluate(()=>JSON.stringify(window.deliveredNotices))).includes(article));
@@ -53,7 +56,7 @@ assert.equal(await page.locator('#workflow-wordpress').isEnabled(),false);
 await page.locator('#approval-reason').fill('最終照合の除外された指摘と取材の根拠を確認し、再開を承認しました');
 await page.locator('#approval-submit').click();
 await page.waitForFunction(()=>document.getElementById('workflow-phase').textContent==='実績待ち');
-assert.equal(calls,15);
+assert.equal(calls,14);
 assert.equal(await page.evaluate(()=>window.deliveredNotices.length),3);
 assert.equal(await page.locator('#workflow-wordpress').isEnabled(),false);
 await page.locator('#workflow-approve-publication').click();
@@ -68,7 +71,7 @@ assert.equal(record.status,'awaiting_metrics');assert.ok(record.approvals.public
 assert.ok(!JSON.stringify(record).includes('sk-or-v1-local-dummy'));assert.ok(!JSON.stringify(record).includes('sample@example.com'));
 await page.locator('#brief-details > summary').click();await page.locator('#metrics-details > summary').click();await page.locator('#wf-metrics').fill('PV1000、問い合わせ2件。計測期間は公開後7日。');await page.locator('#workflow-run').click();
 await page.waitForFunction(()=>document.getElementById('workflow-phase').textContent==='完了');
-assert.equal(calls,16);
+assert.equal(calls,15);
 await page.locator('[data-progress-agent="archive"]').click();await page.locator('[data-agent="analytics"]').click();
 await page.screenshot({path:'/tmp/angle-workflow-results.png',fullPage:true});
 await page.locator('#workflow-review').click();await page.locator('#result-view').waitFor({state:'visible'});
@@ -80,11 +83,11 @@ assert.equal(await page.locator('#workflow-approve-publication').isEnabled(),fal
 risk=false;
 await page.locator('#workflow-run').click();
 await page.waitForFunction(()=>document.getElementById('workflow-phase').textContent==='完了');
-assert.equal(calls,22);
+assert.equal(calls,21);
 await page.setViewportSize({width:390,height:844});
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
 await page.screenshot({path:'/tmp/angle-workflow-mobile.png',fullPage:true});
-await page.locator('#workflow-clear').click();
+await page.locator('.utility-menu > summary').click();await page.locator('#workflow-clear').click();
 assert.equal(await page.locator('#wf-topic').inputValue(),'');
 assert.equal(await page.locator('#wf-completed').textContent(),'0 / 17');
 assert.equal(await page.locator('#notification-badge').isVisible(),false);

@@ -1,9 +1,9 @@
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const {chromium}=createRequire(import.meta.url)('/opt/codex/runtimes/cua/lib/node_modules/playwright-core');
+const {chromium}=createRequire(import.meta.url)('playwright-core');
 const raw=process.env.ANGLE_LIBRARY_PATH?await fs.readFile(process.env.ANGLE_LIBRARY_PATH,'utf8'):JSON.stringify({version:1,industry:[],themes:[],docs:[{title:'銀行のパスキー認証',body:'銀行の認証にパスキーを使う。',date:'2025.10.01'},{title:'物流の取り組み',body:'配送を改善する。'},{title:'外食の出店',date:'2025.10.02'}]}),data=JSON.parse(raw);
-const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox']});
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});const page=await context.newPage(),errors=[],csp=[];let calls=0;
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.on('console',m=>{if(m.text().includes('Content Security Policy'))csp.push(m.text());});await page.route('**/api/agents',r=>{calls++;return r.abort();});

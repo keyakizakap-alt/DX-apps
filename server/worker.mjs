@@ -1,4 +1,4 @@
-import {scopeAgentInput,agentOutputBudget} from '../dist/agent-input.js';
+import {scopeAgentInput,agentOutputBudget,MAX_AGENT_OUTPUT_TOKENS} from '../dist/agent-input.js';
 import { containsSecret,redactText,digest } from '../dist/security.js';
 const CSP="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'none'";
 const headers={'Content-Security-Policy':CSP,'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Cache-Control':'no-store','Strict-Transport-Security':'max-age=31536000; includeSubDomains','X-Frame-Options':'DENY','Cross-Origin-Opener-Policy':'same-origin','Cross-Origin-Resource-Policy':'same-origin'};
@@ -14,7 +14,9 @@ function providerFailure(status,message=''){
   if((status===404||status===503)&&/privacy|data policy|zero.?data|zdr|support.*parameter/i.test(message))return 'provider_policy_unavailable';
   if(status===404)return /model.*(?:unavailable|not found|invalid|not available)|invalid.*model/i.test(message)?'provider_model_unavailable':'provider_route_unavailable';if(status===400)return 'provider_request_rejected';if(status===403)return 'provider_access_denied';return 'provider_unavailable';
 }
-function connectionLog(code,status){console.info(JSON.stringify({event:'ai_connection',code,status}));}
+function connectionLog(code,status,extra={}){console.info(JSON.stringify({event:'ai_connection',code,status,...extra}));}
+// OpenRouter's 402 says how many output tokens the remaining credit covers; log only that number for the operator.
+const affordableTokens=message=>{const match=/can only afford (\d+)/i.exec(message);return match?Number(match[1]):undefined;};
 function json(value,status=200){return new Response(JSON.stringify(value),{status,headers:{...headers,'Content-Type':'application/json; charset=utf-8'}});}
 async function readBounded(stream,limit){
   if(!stream)return '';
@@ -47,13 +49,16 @@ export function createWorker(assets,specs){return{async fetch(request,env={}){
         if(connection!=='ready'){connectionLog(connection,response.status);return {...state,configured:false,connection};}
       }catch{connectionLog('unreachable',0);return {...state,configured:false,connection:'unreachable'};}finally{clearTimeout(timer);}
       // A model call can take longer than the key lookup, so the route probe has its own budget.
+      // The probe reserves the largest output any agent requests: OpenRouter rejects a request whose max_tokens the
+      // remaining credit cannot cover, so a low balance is caught here instead of at the first production step.
+      // The reply is a few tokens, so only the reservation, not the charge, grows.
       // Only a definite upstream rejection blocks production; a slow or dropped probe leaves the
       // valid key usable and each agent request still reports its own provider failure.
       const probeController=new AbortController(),probeTimer=setTimeout(()=>probeController.abort(),25000);
       try{
-        const models=configuredModels(env),probePayload={...modelRoute(models),stream:false,max_tokens:64,provider:providerPolicy(),messages:[{role:'user',content:'Return only a JSON object confirming availability.'}],response_format:{type:'json_schema',json_schema:{name:'connection_check',strict:true,schema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false}}}};
+        const models=configuredModels(env),probePayload={...modelRoute(models),stream:false,max_tokens:MAX_AGENT_OUTPUT_TOKENS,provider:providerPolicy(),messages:[{role:'user',content:'Return only a JSON object confirming availability.'}],response_format:{type:'json_schema',json_schema:{name:'connection_check',strict:true,schema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false}}}};
         const probe=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.OPENROUTER_API_KEY.trim()}`,'X-OpenRouter-Title':'ANGLE Review health check'},body:JSON.stringify(probePayload),signal:probeController.signal});
-        if(!probe.ok){let message='';try{const error=JSON.parse(await readBounded(probe.body,16000));message=String(error.error?.message||'');}catch{}connection=providerFailure(probe.status,message);}
+        if(!probe.ok){let message='';try{const error=JSON.parse(await readBounded(probe.body,16000));message=String(error.error?.message||'');}catch{}connection=providerFailure(probe.status,message);connectionLog(connection,probe.status,{affordableTokens:affordableTokens(message)});return {...state,configured:false,connection};}
         else{let output;try{output=JSON.parse(await readBounded(probe.body,64000));}catch{}if(!Array.isArray(output?.choices)||!output.choices.length)connection='provider_unavailable';}
         connectionLog(connection,probe.status);
       }catch{connectionLog('probe_inconclusive',probeController.signal.aborted?408:0);}finally{clearTimeout(probeTimer);}
@@ -112,7 +117,7 @@ export function createWorker(assets,specs){return{async fetch(request,env={}){
       console.info(JSON.stringify({event:'agent_request',agent:agent.id}));
       const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`,'X-OpenRouter-Title':'ANGLE Review'},body:JSON.stringify(payload),signal:controller.signal});
       key=null;
-      if(!response.ok){let message='';try{const error=JSON.parse(await readBounded(response.body,16000));message=String(error.error?.message||'');}catch{}const code=providerFailure(response.status,message);connectionLog(code,response.status);return json({error:code},[400,401,402,403,404,408,429,502,503].includes(response.status)?response.status:502);}
+      if(!response.ok){let message='';try{const error=JSON.parse(await readBounded(response.body,16000));message=String(error.error?.message||'');}catch{}const code=providerFailure(response.status,message);connectionLog(code,response.status,{agent:agent.id,affordableTokens:affordableTokens(message)});return json({error:code},[400,401,402,403,404,408,429,502,503].includes(response.status)?response.status:502);}
       let text;try{text=await readBounded(response.body,1500000);}catch{return json({error:'provider_output_too_large'},502);}
       if(containsSecret(text))return json({error:'secret_in_provider_output'},422);
       let output;try{output=JSON.parse(text);}catch{return json({error:'invalid_provider_output'},502);}
