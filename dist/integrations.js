@@ -28,7 +28,7 @@ export function toolContent(run,id){
 }
 function csvCell(value){const s=String(value);return '"'+(/^[\s]*[=+\-@]/.test(s)?"'"+s:s).replace(/"/g,'""')+'"';}
 export function toolFile(run,id){
- const content=toolContent(run,id);if(containsSecret(content))throw new Error('認証情報を含む資料は渡せません。');
+ const content=toolContent(run,id);if(containsSecret(content))throw new Error('パスワードなどの秘密の情報を含む資料は渡せません。');
  if(['word','google-docs'].includes(id)){const {title,article}=agentState(run,'rewrite').output;return {bytes:createDocx(title,article),type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',name:run.demo?'デモ原稿.docx':'記事原稿.docx'};}
  if(id==='wordpress')return {bytes:content,type:'text/html;charset=utf-8',name:run.demo?'デモ入稿.html':'記事入稿.html'};
  if(id==='canva'){const article=agentState(run,'rewrite').output,posts=agentState(run,'social').output?.posts||[];return {bytes:'\uFEFF'+[['記事タイトル','媒体','文案'],...posts.map(p=>[article.title,p.platform,p.text])].map(row=>row.map(csvCell).join(',')).join('\r\n'),type:'text/csv;charset=utf-8',name:run.demo?'デモデザイン文案.csv':'デザイン文案.csv'};}
@@ -46,7 +46,7 @@ export function renderIntegrations(container,{run,busy,onApproval}){
  container.querySelector('#tools-approval').onclick=onApproval;
  container.querySelectorAll('[data-tool]').forEach(button=>button.onclick=async()=>{
   const notice=container.querySelector('#tool-notice'),adapter=TOOL_ADAPTERS.find(t=>t.id===button.dataset.tool),dialog=document.getElementById('tool-transfer-dialog'),preview=document.getElementById('tool-transfer-preview'),commit=document.getElementById('tool-transfer-confirm');
-  try{await ensureToolApproval(run,busy);const content=toolContent(run,adapter.id);if(containsSecret(content))throw new Error('認証情報を含む資料は渡せません。');document.getElementById('tool-transfer-title').textContent=adapter.name+'へ渡す内容';preview.value=content;commit.textContent=adapter.label;dialog.showModal();
+  try{await ensureToolApproval(run,busy);const content=toolContent(run,adapter.id);if(containsSecret(content))throw new Error('パスワードなどの秘密の情報を含む資料は渡せません。');document.getElementById('tool-transfer-title').textContent=adapter.name+'へ渡す内容';preview.value=content;commit.textContent=adapter.label;dialog.showModal();
    commit.onclick=async()=>{try{await ensureToolApproval(run,busy);if(toolContent(run,adapter.id)!==content)throw new Error('原稿が変わりました。もう一度確認してください。');if(adapter.kind==='copy'){await navigator.clipboard.writeText(content);notice.textContent=adapter.name+'用の文案をコピーしました。各ツールで貼り付けてください。';}else{save(toolFile(run,adapter.id));notice.textContent=adapter.name+'用のファイルを保存しました。';}await audit(run,'tool_handoff',{tool:adapter.id,method:adapter.kind,simulated:!!run.demo});dialog.close();}catch(e){document.getElementById('tool-transfer-error').textContent=e.message||'操作を完了できませんでした。';}};
    document.getElementById('tool-transfer-error').textContent='';
   }catch(e){notice.textContent=e.message;}

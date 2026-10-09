@@ -14,7 +14,7 @@ export function protectData(value,policy){
   if(!CLASSIFICATIONS.includes(policy.classification)||!policy.consent)throw new Error('情報管理設定で、資料を外部AIへ送信できることを確認してください。');
   const visit=v=>{
     if(typeof v==='string'){
-      if(containsSecret(v))throw new Error('資料にAPIキーなどの認証情報らしき文字列があります。削除してから実行してください。');
+      if(containsSecret(v))throw new Error('資料に、パスワードやアクセス用の鍵のような文字列が含まれています。その部分を削除してから、もう一度お試しください。');
       return policy.redact?redactText(v,policy.terms):v;
     }
     if(Array.isArray(v))return v.map(visit);
