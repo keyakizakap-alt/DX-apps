@@ -41,7 +41,12 @@ export function createVercelHandler(worker) {
       ALLOWED_USER_EMAILS: session?.user.email||VISITOR,
       SITE_ORIGIN: url.origin,
       ALLOWED_MODELS: env.ALLOWED_MODELS,
-      OPENROUTER_API_KEY: env.OPENROUTER_API_KEY
+      OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
+      AI_PROVIDER: env.AI_PROVIDER,
+      GROQ_API_KEY: env.GROQ_API_KEY,
+      GROQ_MODELS: env.GROQ_MODELS,
+      GROQ_ZDR_CONFIRMED: env.GROQ_ZDR_CONFIRMED,
+      GROQ_MAX_OUTPUT_TOKENS: env.GROQ_MAX_OUTPUT_TOKENS
     });
     if (url.pathname === '/api/status' && result.ok && request.method !== 'HEAD') {
       return json({ ...await result.json(), authentication: workspaceConfigured(env)?'company-email':'none', serverKeyOnly: true }, 200);
