@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import worker from '../dist/server/index.js';
 import { createVercelHandler } from '../server/vercel-handler.mjs';
 const require = createRequire(import.meta.url);
-const { chromium } = require('/opt/codex/runtimes/cua/lib/node_modules/playwright-core');
+const { chromium } = require('playwright-core');
 const temporary = await mkdtemp(join(tmpdir(), 'angle-vercel-test-'));
 const key = join(temporary, 'key.pem'), cert = join(temporary, 'cert.pem');
 execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=localhost'], { stdio: 'ignore' });
@@ -27,7 +27,7 @@ const server = https.createServer({ key: await readFile(key), cert: await readFi
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = env.SITE_ORIGIN = `https://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, headless: true, args: ['--no-sandbox'] });
 const errors = [];
 
 try {
