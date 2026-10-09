@@ -41,3 +41,20 @@ test('Groq failures map to plain outcomes and web search is refused rather than 
 test('OpenRouter stays the default provider when AI_PROVIDER is not groq',async()=>{
   const status=await (await handle(new Request(origin+'/api/status'),{SITE_ORIGIN:origin,ALLOW_PUBLIC_AI:'true',GROQ_API_KEY:env.GROQ_API_KEY,GROQ_ZDR_CONFIRMED:'true'})).json();
   assert.equal(status.provider,'OpenRouter');assert.equal(status.connection,'missing_key');});
+
+test('with a Tavily key, research searches only the topic and returns results as verifiable citations',async()=>{const captured=[];const searchEnv={...env,TAVILY_API_KEY:'tvly-testDummyKey012345'};
+  const publicReq=body=>new Request(origin+'/api/agents',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-Data-Classification':'public','X-Data-Consent':'confirmed','X-Redact-Pii':'true'},body:JSON.stringify(body)});
+  const research={agent:'research',model:'openai/gpt-oss-120b',input:{topic:'中小企業のDX事例',audience:'経営者',goal:'紹介',transcript:'取材の発言は送らない'},web:true};
+  await withFetch(async(url,options)=>{captured.push({url,options});
+    if(url==='https://api.tavily.com/search')return Response.json({results:[{title:'事例A',url:'https://example.org/a',content:'A社は受注処理を自動化し、作業時間を30%削減した。'},{title:'bad',url:'javascript:alert(1)',content:'x'}]});
+    return ok({summary:'s',themes:['t'],facts:[{claim:'c',source_id:'https://example.org/a',evidence:'作業時間を30%削減した'}],gaps:[]});},async()=>{
+    const response=await handle(publicReq(research),searchEnv);assert.equal(response.status,200);
+    const search=captured.find(c=>c.url==='https://api.tavily.com/search');assert.equal(search.options.headers.Authorization,'Bearer '+searchEnv.TAVILY_API_KEY);
+    assert.deepEqual(JSON.parse(search.options.body),{query:'中小企業のDX事例',search_depth:'basic',max_results:4,include_answer:false});
+    const model=JSON.parse(captured.find(c=>c.url==='https://api.groq.com/openai/v1/chat/completions').options.body);
+    const sent=JSON.parse(model.messages[1].content);assert.equal(sent.webResults.length,1,'non-http result dropped');assert.equal(sent.webResults[0].url,'https://example.org/a');assert.match(model.messages[0].content,/webResults/);
+    const annotations=(await response.json()).choices[0].message.annotations;assert.deepEqual(annotations,[{type:'url_citation',url_citation:{url:'https://example.org/a',title:'事例A',content:'A社は受注処理を自動化し、作業時間を30%削減した。'}}]);});
+  let modelCalls=0;
+  await withFetch(async url=>{if(url==='https://api.tavily.com/search')return new Response('down',{status:500});modelCalls++;return ok({});},async()=>{
+    const failed=await handle(publicReq(research),searchEnv);assert.equal(failed.status,502);assert.equal((await failed.json()).error,'search_failed');});
+  assert.equal(modelCalls,0,'no model call when the search fails');});

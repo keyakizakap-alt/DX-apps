@@ -46,7 +46,8 @@ export function createVercelHandler(worker) {
       GROQ_API_KEY: env.GROQ_API_KEY,
       GROQ_MODELS: env.GROQ_MODELS,
       GROQ_ZDR_CONFIRMED: env.GROQ_ZDR_CONFIRMED,
-      GROQ_MAX_OUTPUT_TOKENS: env.GROQ_MAX_OUTPUT_TOKENS
+      GROQ_MAX_OUTPUT_TOKENS: env.GROQ_MAX_OUTPUT_TOKENS,
+      TAVILY_API_KEY: env.TAVILY_API_KEY
     });
     if (url.pathname === '/api/status' && result.ok && request.method !== 'HEAD') {
       return json({ ...await result.json(), authentication: workspaceConfigured(env)?'company-email':'none', serverKeyOnly: true }, 200);
