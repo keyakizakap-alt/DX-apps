@@ -3,7 +3,7 @@ export const DEMO_METRICS='【架空の公開実績・デモ用】\n対象：こ
 const article='【架空のデモ記事】\n\n企業の業務改善を支援する株式会社ネクストワーク。継続的な改善の仕組みと、AIを使う際の確認について話を聞いた。\n\nある支援先では、月次レポートの作成時間を30%削減できたという。一部のお客様で効果を確認できました。業務の内容や運用によって結果は異なる。\n\n同社はウェブ上で作業状況を共有する。AIは報告書の下書きを作成し、担当者が内容を確認する。\n\n改善を続けるには、下書きの作成と担当者の確認を組み合わせることが大切だ。';
 const title='【デモ】継続的な改善を支える仕組み';
 export async function demoAgent({id,schema,signal}){
-  await new Promise((resolve,reject)=>{const done=()=>{signal?.removeEventListener('abort',abort);resolve();},timer=setTimeout(done,300),abort=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);reject(new DOMException('実行を停止しました。','AbortError'));};if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});});
+  await new Promise((resolve,reject)=>{const done=()=>{signal?.removeEventListener('abort',abort);resolve();},timer=setTimeout(done,900),abort=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);reject(new DOMException('実行を停止しました。','AbortError'));};if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});});
   let output;
   if(id==='research')output={summary:'【デモ】継続的な改善と担当者の確認を企画の軸にします。',themes:['改善を継続する仕組み','下書きと内容確認の役割分担'],facts:[],gaps:['数値の対象と条件は取材資料で確認する']};
   else if(['writing','rewrite'].includes(id))output={summary:'【デモ】取材の対象・条件を残した原稿です。',title,article};
