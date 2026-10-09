@@ -19,7 +19,7 @@ export function aiSettings() { return { model:config.model,reviewModel:config.re
 export function protectedInput(input){return protectData(input,config);}
 export async function discoverServer({verify=false}={}){
   if(discovery){await discovery;return verify?discoverServer({verify:true}):{serverReady,connection};}
-  discovery=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),verify?30000:12000);
+  discovery=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),verify?45000:12000);
     try{const r=await fetch(verify?'/api/connection':'/api/status',{method:verify?'POST':'GET',cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error('connection');const status=await r.json();serverReady=status.configured===true;connection=status.connection||(serverReady?'not_checked':'missing_key');if(typeof status.defaultModel==='string'&&status.defaultModel)config.model=status.defaultModel;}
     catch{serverReady=false;connection='unreachable';}finally{clearTimeout(timer);globalThis.window?.dispatchEvent(new Event('ai:configured'));}
     return {serverReady,connection};

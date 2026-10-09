@@ -54,6 +54,7 @@ async function startProduction(target){
   if(missing.length){missing.forEach(([key])=>$('wf-'+key).setAttribute('aria-invalid','true'));status(`${missing.map(([,label])=>label).join('・')}を入力してください。入力後、制作を開始できます。`);$('brief-details').open=true;$('wf-'+missing[0][0]).focus();return;}
   if(!demoMode){status('制作を利用できるか確認しています。');render();await discoverServer({verify:true});}
   if(!demoMode&&!aiSettings().serverReady){status(connectionMessage());$('workflow-reconnect').hidden=false;return;}
+  $('workflow-reconnect').hidden=true;
   if(!demoMode&&(!aiConfigured()||!aiSettings().consent)){pendingTarget=target;status('資料の取り扱いを確認すると、選択した制作を開始します。');$('workflow-settings').click();return;}
   let input;try{input=demoMode?{...raw,webSearch:false,editorialContext:null}:protectedInput(raw);}catch(e){status(e.message,true);return;}
   if(input.webSearch&&aiSettings().classification!=='public'){status('Web検索は公開情報のみで使えます。社内資料は検索に送信しません。',true);return;}
@@ -201,7 +202,7 @@ export function initWorkflow(options={}){
     if(busy||starting||!run||!canEdit())return;if(!demoMode&&(!aiConfigured()||!aiSettings().consent)){status('資料の取り扱いを確認してから、作り直してください。');$('workflow-settings').click();return;}const id=selected;if(!confirm('この内容を作り直しますか？ この内容を使う後の工程と公開前の確認もやり直します。'))return;
     let backup;try{backup=await prepareRegeneration(run,id);approvalMode='risk';await start(id);if(['failed','cancelled','ready','budget_exceeded'].includes(run.status)){await restoreRegeneration(run,backup);selected=id;render();status('作り直しを完了できなかったため、前の内容を残しました。もう一度お試しください。',true);}}catch(e){if(backup)await restoreRegeneration(run,backup);render();status(e.message,true);}
   });
-  $('workflow-reconnect').addEventListener('click',async()=>{if(busy||starting)return;starting=true;render();status('制作を利用できるか確認しています。');try{await discoverServer({verify:true});status(connectionMessage());}finally{starting=false;render();}});
+  $('workflow-reconnect').addEventListener('click',async()=>{if(busy||starting)return;starting=true;render();status('制作を利用できるか確認しています。');try{await discoverServer({verify:true});status(connectionMessage());$('workflow-reconnect').hidden=!!aiSettings().serverReady;}finally{starting=false;render();}});
   $('workflow-stop').addEventListener('click',()=>controller?.abort());
   $('workflow-preview').addEventListener('click',()=>{const settings=aiSettings(),input=readInput(),labels={topic:'企画テーマ',audience:'想定読者',goal:'記事の目的',media:'掲載媒体',targetLength:'文字数の目安',sources:'調査資料',rules:'編集ルール',transcript:'文字起こし',metrics:'公開後の実績'};let text=Object.entries(labels).map(([key,label])=>label+'\n'+(input[key]||'未入力')).join('\n\n');if(input.editorialContext)text+='\n\n参考記事（今回の事実根拠には使いません）\n'+input.editorialContext.references.map(r=>[r.title,r.date,r.url,[...r.industry,...r.themes].join(' / '),r.excerpt].join('\n')).join('\n\n')+'\n\n分類の名称\n'+input.editorialContext.categoryNames.join(' / ');$('privacy-preview').textContent=settings.redact?redactText(text,settings.terms):text;$('privacy-dialog').showModal();});
   $('workflow-clear').addEventListener('click',()=>{
