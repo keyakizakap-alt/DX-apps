@@ -15,7 +15,7 @@ export function parseBrief(text){
   }
   if(brief.media!==undefined&&!media.includes(brief.media))throw new Error('掲載媒体の項目を読み取れませんでした。');
   if(['sources','rules','transcript','metrics'].reduce((n,k)=>n+(brief[k]?.length||0),0)>80000)throw new Error('資料の合計は80,000文字以内で読み込んでください。');
-  if(containsSecret(text))throw new Error('資料に認証情報が含まれているようです。取り除いてから読み込んでください。');
+  if(containsSecret(text))throw new Error('資料に、パスワードなどの秘密の情報が含まれているようです。その部分を取り除いてから読み込んでください。');
   return Object.fromEntries(Object.entries(brief));
 }
 export function validateMaterial(name,size,text,maxLength){
@@ -23,7 +23,7 @@ export function validateMaterial(name,size,text,maxLength){
   if(size>500000)throw new Error('500KB以内のファイルをご利用ください。');
   if(typeof text!=='string'||text.includes('\u0000')||text.includes('\ufffd'))throw new Error('文章を読み取れませんでした。UTF-8のテキストファイルで保存し直してください。');
   if(text.length>maxLength)throw new Error(`この欄は${maxLength.toLocaleString()}文字まで読み込めます。`);
-  if(containsSecret(text))throw new Error('資料に認証情報が含まれているようです。取り除いてから読み込んでください。');
+  if(containsSecret(text))throw new Error('資料に、パスワードなどの秘密の情報が含まれているようです。その部分を取り除いてから読み込んでください。');
   return text.replace(/^\ufeff/,'');
 }
 export function readableArtifact(output){

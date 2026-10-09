@@ -30,8 +30,10 @@ export function scopeAgentInput(id,input){
 }
 
 // A Japanese character target is not a reason to reserve 8,000 tokens for every short article.
+// Largest max_tokens any agent requests; the connection check reserves this much so a low balance is caught early.
+export const MAX_AGENT_OUTPUT_TOKENS=8000;
 export function agentOutputBudget(id,input={}){
  if(id!=='writing')return 4000;
  const length=Number(input.targetLength);
- return Number.isFinite(length)&&length>0?Math.min(8000,Math.max(1800,Math.ceil(length*1.6+600))):4000;
+ return Number.isFinite(length)&&length>0?Math.min(MAX_AGENT_OUTPUT_TOKENS,Math.max(1800,Math.ceil(length*1.6+600))):4000;
 }

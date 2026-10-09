@@ -45,6 +45,7 @@ Node.js 24を推奨。依存パッケージの追加インストールは不要�
 - `npm start`: http://127.0.0.1:4173 の開発用プレビュー。開発サーバーだけがローカルの仮の本人識別を付与する。外部公開しない。
 - `npm test`: 根拠検証、修正重複、情報管理、認証、同一生成元、HOTL、監督承認、再開、改ざん検知の回帰確認。
 - `npm run build`: Cloudflare Workers互換の `dist/server/index.js` を生成。
+- `npm run test:browser`: ビルド後に開発サーバーを起動し、`tests/*browser.mjs` をすべて実行。初回は `npx playwright-core install chromium` でブラウザを用意する。GitHub Actions（`.github/workflows/ci.yml`）がPRと `main` へのpushごとに、依存関係の脆弱性確認・`npm test`・ブラウザテストを実行する。
 
 Vercel版はパスワードなし。Sites版は従来の本人限定アクセスと `ALLOWED_USER_EMAILS` を使用。環境設定は `.env.example` を参照。実キーをGitHubにコミットしない。GitHubのリポジトリ直下をソースの保存先とする。
 
@@ -168,3 +169,20 @@ Vercel の `LOGIN_ALLOWED_EMAILS` と両方に登録された利用者だけが�
 専門担当へ渡す入力項目と前工程の結果を `dist/agent-input.js` で定義し、ブラウザとサーバーの両方で適用します。調査に文字起こしや実績を渡さず、SNS担当には記事と見出しを渡します。記事本文に含まれる情報まで取り除くものではありません。機密区分・同意・認証情報検出・個人情報マスキング・学習拒否/ZDR指定は別の制御として維持します。接続先のリダイレクトは拒否します。
 
 明示的な一時接続障害（provider_unavailable の502/503、upstream_unavailable）のみ、同じ担当を1秒後に1回再試行します。認証・権限・情報保護・利用上限・タイムアウト・不正な出力は自動再試行しません。再試行も48回の制作上限に含み、停止操作で待機を中断します。再試行は実行記録に残り、追加リクエストが発生するため料金削減を保証しません。サーバー全体の課金上限や永続的なバックグラウンド実行は別途必要です。
+
+## 画面のエラー表示と運営者向けコード（2026-10-09）
+
+利用者向けの表示は、技術用語を使わずに「何が起きたか」「どうすればよいか」を伝えます。運営者の対応が必要なものには「（コード：S04）」のようなコードを付けます。利用者から問い合わせを受けたら、次の表で原因を確認してください。サーバーのログにも同じ原因が `code` として記録されます。
+
+| コード | 原因（ログの `code`） | 運営者の対応 |
+|---|---|---|
+| S01 | `missing_key` / `openrouter_key_required`：OpenRouterのAPIキーが未設定 | Vercelの環境変数 `OPENROUTER_API_KEY` を設定し、Redeploy |
+| S02 | `invalid_key`：APIキーの形式が違う、または無効 | OpenRouterで有効なキーを発行し直して設定 |
+| S03 | `model_not_configured`：使えるモデルが設定されていない | `ALLOWED_MODELS` を確認 |
+| S04 | `credit_required` / `provider_credit_required`：残高またはキーの利用上限が不足（ログの `affordableTokens` は残りでまかなえる出力量） | OpenRouterでクレジットを追加するか、APIキーの利用上限を引き上げる |
+| S05 | `provider_auth_failed`：OpenRouterがキーを受け付けない | キーの有効・無効、権限を確認 |
+| S06 | `provider_policy_unavailable`：データを保持しない条件（ZDR等）を満たす提供元がない | `ALLOWED_MODELS` を条件を満たすモデルに変更 |
+| S07 | `provider_model_unavailable`：指定モデルが利用できない | 時間をおいて再確認するか、モデルを変更 |
+| S08 | `provider_route_unavailable`：モデルの提供元に接続できない | 時間をおいて再確認するか、モデルを変更 |
+| S09 | `provider_access_denied`：OpenRouter側でアクセスが拒否された | OpenRouterの権限・プライバシー設定を確認 |
+| S10 | `provider_request_rejected`：リクエストが受け付けられない | モデル設定と入力量を確認 |

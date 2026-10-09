@@ -5,7 +5,8 @@ export function redactText(text,terms=''){
   const custom=terms.split('\n').map(t=>t.trim()).filter(t=>t.length>=2).sort((a,b)=>b.length-a.length);
   custom.forEach((term,i)=>{output=output.split(term).join(`［非公開情報${i+1}］`);});
   output=output.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'［メールアドレス］');
-  output=output.replace(/(?<!\d)(?:\+81[-\s]?(?:0)?|0)(?:[789]0[-\s]?\d{4}[-\s]?\d{4}|\d{1,4}[-\s]\d{1,4}[-\s]\d{3,4})(?!\d)/g,'［電話番号］');
+  // Safari before iOS 16.4 cannot parse lookbehind, so the leading boundary is captured and kept.
+  output=output.replace(/(^|\D)(?:\+81[-\s]?(?:0)?|0)(?:[789]0[-\s]?\d{4}[-\s]?\d{4}|\d{1,4}[-\s]\d{1,4}[-\s]\d{3,4})(?!\d)/g,(_,boundary)=>boundary+'［電話番号］');
   return output;
 }
 export function protectData(value,policy){
@@ -13,7 +14,7 @@ export function protectData(value,policy){
   if(!CLASSIFICATIONS.includes(policy.classification)||!policy.consent)throw new Error('情報管理設定で、資料を外部AIへ送信できることを確認してください。');
   const visit=v=>{
     if(typeof v==='string'){
-      if(containsSecret(v))throw new Error('資料にAPIキーなどの認証情報らしき文字列があります。削除してから実行してください。');
+      if(containsSecret(v))throw new Error('資料に、パスワードやアクセス用の鍵のような文字列が含まれています。その部分を削除してから、もう一度お試しください。');
       return policy.redact?redactText(v,policy.terms):v;
     }
     if(Array.isArray(v))return v.map(visit);
