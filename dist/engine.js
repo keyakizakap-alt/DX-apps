@@ -5,6 +5,12 @@ export const SAMPLE = {
   rules: '【サンプル用編集ルール：実際の媒体規定ではありません】\n表記：Web → ウェブ\n表記：毎 → ごと\n・文体は「だ・である調」で統一する。\n・発言の引用は、話者の意図と限定条件を保つ。\n・効果や成果を断定するときは、取材資料に根拠があるか確認する。\n・固有名詞・数値は取材資料と照合する。'
 };
 
+// Plain-language name for a source sentence ID (T3, S2, R1) or a web citation, for display to editors.
+export function sourceLabel(id) {
+  const match = /^([TSR])(\d+)$/.exec(String(id || ''));
+  if (match) return `${{T: '取材の文字起こし', S: '参考資料', R: '編集ルール'}[match[1]]}・${match[2]}番目`;
+  return /^https?:\/\//.test(String(id || '')) ? 'Webの参照先' : '資料';
+}
 export function segments(text, prefix = 'T') {
   return text.replace(/。/gu, '。\n').split('\n').map(s => s.trim()).filter(Boolean).map((text, i) => ({ id: `${prefix}${i + 1}`, text }));
 }
