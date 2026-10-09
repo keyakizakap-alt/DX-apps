@@ -6,7 +6,7 @@ export const SAMPLE = {
 };
 
 export function segments(text, prefix = 'T') {
-  return text.split(/\n|(?<=。)/u).map(s => s.trim()).filter(Boolean).map((text, i) => ({ id: `${prefix}${i + 1}`, text }));
+  return text.replace(/。/gu, '。\n').split('\n').map(s => s.trim()).filter(Boolean).map((text, i) => ({ id: `${prefix}${i + 1}`, text }));
 }
 function grams(text) {
   const clean = text.replace(/[\s\p{P}\p{S}]/gu, '');
