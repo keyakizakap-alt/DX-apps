@@ -4,14 +4,14 @@ import { createVercelHandler } from '../server/vercel-handler.mjs';
 import { createWorker } from '../server/worker.mjs';
 import { WORKFLOW_AGENTS } from '../dist/agents.js';
 const origin='https://example.test';
-const env={SITE_ORIGIN:origin,OPENROUTER_API_KEY:'sk-or-v1-server-test-dummy'};
+const env={SITE_ORIGIN:origin,ALLOW_PUBLIC_AI:'true',OPENROUTER_API_KEY:'sk-or-v1-server-test-dummy'};
 function setup(){return createVercelHandler(createWorker({'/index.html':{type:'text/html',content:'<p>public app</p>'},'/app.js':{type:'text/javascript',content:'publicJS'}},WORKFLOW_AGENTS));}
 function api(headers={}){return new Request(origin+'/api/agents',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-Data-Classification':'internal','X-Data-Consent':'confirmed','X-Redact-Pii':'true',...headers},body:JSON.stringify({agent:'planning',model:'openai/gpt-4.1-mini',input:{text:'企画資料'},web:false})});}
 test('app opens without password or cookie even before operator sets API key',async()=>{
   const handle=setup();const response=await handle(new Request(origin),{SITE_ORIGIN:origin});
   assert.equal(response.status,200);assert.equal(await response.text(),'<p>public app</p>');assert.equal(response.headers.has('Set-Cookie'),false);
   assert.equal((await handle(new Request(origin+'/app.js'),{SITE_ORIGIN:origin})).status,200);
-  const status=await handle(new Request(origin+'/api/status'),{SITE_ORIGIN:origin});assert.deepEqual(await status.json(),{configured:false,provider:'OpenRouter',serverPolicy:'zdr-no-training',connection:'missing_key',defaultModel:'openai/gpt-4.1-mini',authentication:'none',serverKeyOnly:true});
+  const status=await handle(new Request(origin+'/api/status'),{SITE_ORIGIN:origin});assert.deepEqual(await status.json(),{configured:false,provider:'OpenRouter',serverPolicy:'zdr-no-training',connection:'login_not_configured',defaultModel:'openai/gpt-4.1-mini',authentication:'none',serverKeyOnly:true});
 });
 test('server status exposes only readiness, never the operator secret',async()=>{
   const response=await setup()(new Request(origin+'/api/status'),env);const data=await response.json();assert.equal(data.configured,true);assert.equal(JSON.stringify(data).includes(env.OPENROUTER_API_KEY),false);assert.equal(response.headers.get('Cache-Control'),'no-store');
@@ -24,7 +24,8 @@ test('unknown origins and cross-site mutations remain blocked',async()=>{
 });
 test('users cannot override server key and no-key deployments cannot use a client key',async()=>{
   const handle=setup();for(const configuration of [env,{SITE_ORIGIN:origin}])assert.equal((await handle(api({'X-OpenRouter-Key':'sk-or-v1-user-test-dummy'}),configuration)).status,400);
-  assert.equal((await handle(api(),{SITE_ORIGIN:origin})).status,401);
+  assert.equal((await handle(api(),{SITE_ORIGIN:origin})).status,503);
+  assert.equal((await handle(api(),{SITE_ORIGIN:origin,ALLOW_PUBLIC_AI:'true'})).status,401);
 });
 test('gateway uses only operator key and still pins no-training/ZDR policy',async()=>{
   const original=globalThis.fetch;let captured;globalThis.fetch=async(url,options)=>{captured={url,options,payload:JSON.parse(options.body)};return Response.json({choices:[{message:{content:'{}'},finish_reason:'stop'}]});};
@@ -41,7 +42,7 @@ test('Vercel origin variables support password-free deployment without trusting 
 });
 test('signed-in users can start unsaved articles while existing project roles remain enforced',async()=>{
  const previous=globalThis.fetch;const configuration={...env,SUPABASE_URL:'https://abcdefghijklmnopqrst.supabase.co',SUPABASE_PUBLISHABLE_KEY:'fixture',LOGIN_ALLOWED_EMAILS:'owner@company.test'};let forwarded=0;
- globalThis.fetch=async url=>url.endsWith('/auth/v1/user')?Response.json({id:'owner',email:'owner@company.test',email_confirmed_at:'now'}):Response.json([]);
+ globalThis.fetch=async url=>url.endsWith('/auth/v1/user')?Response.json({id:'owner',email:'owner@company.test',email_confirmed_at:'now'}):url.endsWith('/rpc/angle_consume_ai')?Response.json(true):Response.json([]);
  const handle=createVercelHandler({fetch:async()=>{forwarded++;return Response.json({ok:true});}});
  try{for(const headers of [{},{'X-Project-Id':''}])assert.equal((await handle(api({Cookie:'__Host-angle_access=fixture',...headers}),configuration)).status,200);for(const id of ['invalid','11111111-1111-4111-8111-111111111111'])assert.equal((await handle(api({Cookie:'__Host-angle_access=fixture','X-Project-Id':id}),configuration)).status,403);assert.equal(forwarded,2);}finally{globalThis.fetch=previous;}
 });
