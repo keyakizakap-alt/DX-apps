@@ -1,7 +1,7 @@
 import {scopeAgentInput,agentOutputBudget,MAX_AGENT_OUTPUT_TOKENS} from '../dist/agent-input.js';
 import { containsSecret,redactText,digest } from '../dist/security.js';
-const CSP="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'self' https://chatgpt.com https://chat.openai.com";
-const headers={'Content-Security-Policy':CSP,'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Cache-Control':'no-store','Strict-Transport-Security':'max-age=31536000'};
+const CSP="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'none'";
+const headers={'Content-Security-Policy':CSP,'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Cache-Control':'no-store','Strict-Transport-Security':'max-age=31536000; includeSubDomains','X-Frame-Options':'DENY','Cross-Origin-Opener-Policy':'same-origin','Cross-Origin-Resource-Policy':'same-origin'};
 const limits=new Map();
 const healthChecks=new Map();
 const validKey=key=>typeof key==='string'&&/^sk-or-v1-[A-Za-z0-9_-]{10,250}$/.test(key.trim());

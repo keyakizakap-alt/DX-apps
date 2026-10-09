@@ -170,6 +170,26 @@ Vercel の `LOGIN_ALLOWED_EMAILS` と両方に登録された利用者だけが�
 
 明示的な一時接続障害（provider_unavailable の502/503、upstream_unavailable）のみ、同じ担当を1秒後に1回再試行します。認証・権限・情報保護・利用上限・タイムアウト・不正な出力は自動再試行しません。再試行も48回の制作上限に含み、停止操作で待機を中断します。再試行は実行記録に残り、追加リクエストが発生するため料金削減を保証しません。サーバー全体の課金上限や永続的なバックグラウンド実行は別途必要です。
 
+## 本番運用のセキュリティ設定（2026-10-09）
+
+AIの利用料金は運営者のOpenRouterアカウントに発生するため、**AIの実行（`/api/agents`・`/api/connection`）は会社メールでのログインを必須**にしました。ログイン機能（Supabase）が未設定の場合、AIは実行せずに停止します（フェイルクローズ）。画面・デモ・基本チェックはログインなしで利用できます。
+
+### 有効化の手順
+1. Supabaseで、SQLを `database/workspace.sql` → `database/company-access.sql` → `database/ai-usage.sql`（→ 通知を使う場合は `database/reminders.sql`）の順に適用する。
+2. `angle_private.allowed_email_rules` に許可するメールアドレスまたは `@会社ドメイン` を登録する。
+3. Vercelの環境変数に `SUPABASE_URL`、`SUPABASE_PUBLISHABLE_KEY`、`LOGIN_ALLOWED_EMAILS` を設定してRedeployする。
+4. OpenRouterの管理画面で、APIキーに日次または月次の利用額上限を設定する。アプリ側の制限とは別に、請求額の最終的な上限になる。
+
+### 利用上限
+ログインした利用者ごとに、1日と1分あたりのAI呼び出し回数をSupabaseで数える。サーバーのインスタンスが複数あっても共通の上限として働く。既定は1日400回・1分30回（記事1本は再開を含め最大48回）。`AI_DAILY_LIMIT`・`AI_MINUTE_LIMIT` で変更でき、上限はそれぞれ5000・600。利用状況を確認できない場合もAIを実行しない。
+
+### その他の対策
+- 確認コードは同じメールアドレスで5回間違えると15分間受け付けない（サーバーのインスタンス単位。Supabase側の制限と併用）。
+- 他サイトへの埋め込み表示を禁止（`frame-ancestors 'none'`、`X-Frame-Options: DENY`）。HSTSにサブドメインを含める。
+- 通知ジョブの `CRON_SECRET` は、比較にかかる時間から秘密値を推測できない方法で照合する。
+
+`ALLOW_PUBLIC_AI=true` を設定すると、従来どおりログインなしでAIを使える。誰でも運営者の費用でAIを実行できるため、本番では設定しないこと。
+
 ## 画面のエラー表示と運営者向けの原因一覧（2026-10-09）
 
 利用者向けの表示は、技術用語やコード番号を使わずに「何が起きたか」「どうすればよいか」だけを伝えます。原因の特定は運営者がサーバーのログで行います。Vercelのログで `ai_connection` を検索し、`code` の値を次の表で確認してください（表の「コード」列は運営者の整理用で、画面には表示しません）。
@@ -186,3 +206,4 @@ Vercel の `LOGIN_ALLOWED_EMAILS` と両方に登録された利用者だけが�
 | S08 | `provider_route_unavailable`：モデルの提供元に接続できない | 時間をおいて再確認するか、モデルを変更 |
 | S09 | `provider_access_denied`：OpenRouter側でアクセスが拒否された | OpenRouterの権限・プライバシー設定を確認 |
 | S10 | `provider_request_rejected`：リクエストが受け付けられない | モデル設定と入力量を確認 |
+| S11 | `login_not_configured`：ログイン機能（Supabase）が未設定のため、AIを実行しない | 「本番運用のセキュリティ設定」の手順でSupabaseを設定 |

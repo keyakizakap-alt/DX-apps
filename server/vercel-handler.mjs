@@ -1,5 +1,5 @@
 import {handleReminders} from './reminders.mjs';
-import {handleWorkspace,workspaceConfigured,workspaceSession,workspaceProjectRole} from './workspace.mjs';
+import {handleWorkspace,workspaceConfigured,workspaceSession,workspaceProjectRole,consumeAiQuota} from './workspace.mjs';
 const VISITOR = 'public-visitor@deployment.invalid';
 function allowedOrigins(env) {
   const origins = [];
@@ -28,10 +28,15 @@ export function createVercelHandler(worker) {
     if (!['GET', 'HEAD'].includes(request.method) && (request.headers.get('Origin') !== url.origin || request.headers.get('Sec-Fetch-Site') === 'cross-site')) return json({ error: 'origin_denied' }, 403);
     if (['/api/agents','/api/connection'].includes(url.pathname) && request.headers.has('X-OpenRouter-Key')) return json({ error: 'client_key_not_allowed' }, 400);
     const workspace=await handleWorkspace(request,env);if(workspace)return workspace;
+    // AI calls are billed to the operator, so they require a company login unless public use is explicitly enabled.
+    const aiRoute=['/api/agents','/api/connection'].includes(url.pathname);
+    const publicAI=env.ALLOW_PUBLIC_AI==='true';
+    if(aiRoute&&!workspaceConfigured(env)&&!publicAI)return url.pathname==='/api/connection'?json({configured:false,connection:'login_not_configured'},200):json({error:'login_not_configured'},503);
     let session=null;
     if(workspaceConfigured(env)&&['/api/agents','/api/connection'].includes(url.pathname)){try{session=await workspaceSession(request,env);}catch{return json({error:'workspace_unavailable'},503);}}
-    if(workspaceConfigured(env)&&['/api/agents','/api/connection'].includes(url.pathname)&&!session)return json({error:'login_required'},401);
+    if(workspaceConfigured(env)&&aiRoute&&!session)return url.pathname==='/api/connection'?json({configured:false,connection:'login_required'},200):json({error:'login_required'},401);
     if(session&&url.pathname==='/api/agents'&&request.headers.get('X-Project-Id')){let role;try{role=await workspaceProjectRole(session,env,request.headers.get('X-Project-Id'));}catch{return json({error:'workspace_unavailable'},503);}if(!['owner','editor','approver'].includes(role))return json({error:'permission_denied'},403);}
+    if(session&&url.pathname==='/api/agents'&&request.method==='POST'){let allowed;try{allowed=await consumeAiQuota(session,env);}catch{return json({error:'usage_unavailable'},503);}if(!allowed)return json({error:'usage_limit'},429);}
     const headers = new Headers(request.headers);
     // The Worker is shared with private Sites deployments. This adapter intentionally
     // replaces caller identity headers with verified company identity or the public demo identity.
@@ -44,7 +49,9 @@ export function createVercelHandler(worker) {
       OPENROUTER_API_KEY: env.OPENROUTER_API_KEY
     });
     if (url.pathname === '/api/status' && result.ok && request.method !== 'HEAD') {
-      return json({ ...await result.json(), authentication: workspaceConfigured(env)?'company-email':'none', serverKeyOnly: true }, 200);
+      const status=await result.json();
+      if(!workspaceConfigured(env)&&!publicAI)Object.assign(status,{configured:false,connection:'login_not_configured'});
+      return json({ ...status, authentication: workspaceConfigured(env)?'company-email':'none', serverKeyOnly: true }, 200);
     }
     const outputHeaders = new Headers(result.headers);
     outputHeaders.set('Vercel-CDN-Cache-Control', 'no-store');
