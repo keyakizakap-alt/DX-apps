@@ -18,3 +18,9 @@ test('slow route probe does not block a valid key, while a definite route reject
     mode='policy';const env={SITE_ORIGIN:origin,OPENROUTER_API_KEY:'sk-or-v1-policy-probe-dummy'};data=await (await handle(request(),env)).json();assert.equal(data.connection,'provider_policy_unavailable');assert.equal(data.configured,false);
     mode='ok';const before=probes;data=await (await handle(request(),env)).json();assert.equal(probes,before+1);assert.equal(data.connection,'ready');
   }finally{globalThis.fetch=original;globalThis.setTimeout=originalTimeout;}});
+test('connection check reserves the largest agent output, so too little credit stops production before the first step',async()=>{const original=fetch,originalInfo=console.info,logs=[];let probeBody;console.info=line=>logs.push(line);
+  globalThis.fetch=async(url,options)=>{if(url==='https://openrouter.ai/api/v1/key')return Response.json({data:{limit_remaining:0.4}});probeBody=JSON.parse(options.body);return Response.json({error:{code:402,message:'This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford 900.'}},{status:402});};
+  try{const data=await (await handle(request(),{SITE_ORIGIN:origin,OPENROUTER_API_KEY:'sk-or-v1-low-credit-dummy'})).json();
+    assert.equal(probeBody.max_tokens,8000);assert.equal(data.connection,'provider_credit_required');assert.equal(data.configured,false);
+    const entry=logs.map(line=>JSON.parse(line)).find(l=>l.code==='provider_credit_required');assert.equal(entry.affordableTokens,900);assert.ok(!logs.join('').includes('requires more credits'));
+  }finally{globalThis.fetch=original;console.info=originalInfo;}});
