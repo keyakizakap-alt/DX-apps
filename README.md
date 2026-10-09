@@ -45,6 +45,7 @@ Node.js 24を推奨。依存パッケージの追加インストールは不要�
 - `npm start`: http://127.0.0.1:4173 の開発用プレビュー。開発サーバーだけがローカルの仮の本人識別を付与する。外部公開しない。
 - `npm test`: 根拠検証、修正重複、情報管理、認証、同一生成元、HOTL、監督承認、再開、改ざん検知の回帰確認。
 - `npm run build`: Cloudflare Workers互換の `dist/server/index.js` を生成。
+- `npm run test:browser`: ビルド後に開発サーバーを起動し、`tests/*browser.mjs` をすべて実行。初回は `npx playwright-core install chromium` でブラウザを用意する。GitHub Actions（`.github/workflows/ci.yml`）がPRと `main` へのpushごとに、依存関係の脆弱性確認・`npm test`・ブラウザテストを実行する。
 
 Vercel版はパスワードなし。Sites版は従来の本人限定アクセスと `ALLOWED_USER_EMAILS` を使用。環境設定は `.env.example` を参照。実キーをGitHubにコミットしない。GitHubのリポジトリ直下をソースの保存先とする。
 

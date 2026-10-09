@@ -2,8 +2,8 @@ import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const require=createRequire(import.meta.url);
-const { chromium }=require('/opt/codex/runtimes/cua/lib/node_modules/playwright-core');
-const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+const { chromium }=require('playwright-core');
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox']});
 const errors=[];
 const context=await browser.newContext({viewport:{width:1440,height:1050},acceptDownloads:true});
 await context.route('https://fonts.googleapis.com/**',r=>r.abort());
@@ -56,6 +56,9 @@ const readBack=await page.evaluate(()=>window.registeredTools.read_editorial_rev
 assert.equal(readBack.findings.length,4);
 
 // Mock the same-origin gateway contract. Real paid model calls are not made.
+// The local development server has no operator key, so report a configured server and re-run discovery.
+await page.route('**/api/{status,connection}',r=>r.fulfill({json:{configured:true,connection:'ready',defaultModel:'openai/gpt-4.1-mini'}}));
+await page.evaluate(()=>import('/provider.js').then(m=>m.discoverServer()));
 await page.route('**/api/agents',async r=>{
   const request=r.request().postDataJSON();
   assert.ok(!('instruction' in request));
