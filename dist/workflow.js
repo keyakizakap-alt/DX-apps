@@ -27,7 +27,9 @@ export function showWorkflow(){
   $('workflow-view').hidden=false;$('input-view').hidden=true;$('result-view').hidden=true;$('steps-review').hidden=true;
   $('nav-workflow').classList.add('active');$('nav-editor').classList.remove('active');
 }
-function status(message,error=false){$('workflow-status').hidden=!message;$('workflow-status').className='notice'+(error?' error':'');$('workflow-status').textContent=message;}
+function status(message,error=false){$('workflow-status').hidden=!message;$('workflow-status').className='notice'+(error?' error':'');$('workflow-status').textContent=message;if(error&&message)$('workflow-status').scrollIntoView({block:'nearest'});}
+// The approval panel sits far below the page status, so its outcome is also shown next to its button.
+function approvalMessage(message,error=false){const el=$('approval-message');el.hidden=!message;el.className='notice'+(error?' error':'');el.textContent=message||'';if(error&&message)el.scrollIntoView({block:'nearest'});}
 function readInput(){return{topic:$('wf-topic').value.trim(),audience:$('wf-audience').value.trim(),goal:$('wf-goal').value.trim(),media:$('wf-media').value,targetLength:Number($('wf-length').value),sources:$('wf-sources').value.trim(),rules:$('wf-rules').value.trim(),transcript:$('wf-transcript').value.trim(),metrics:$('wf-metrics').value.trim(),webSearch:$('wf-web-search').checked,editorialContext:selectedKnowledge()};}
 function sample({demo=false}={}){
   if(busy||starting||!canEdit())return false;
@@ -224,8 +226,12 @@ export function initWorkflow(options={}){
   $('workflow-wordpress').addEventListener('click',async()=>{const output=run&&agentState(run,'archive').output;if(!output)return;if(!await publicationApproved(run)){status('作成した内容が変更されています。公開用データの承認をやり直してください。',true);return;}await audit(run,'wordpress_package_exported',{approvalHash:run.approvals.publication.hash});download(output.content,'text/html;charset=utf-8','angle-wordpress-draft.html');});
   $('workflow-approve-publication').addEventListener('click',()=>{approvalMode='publication';$('approval-panel').hidden=false;$('approval-title').textContent='公開用データの承認';$('approval-description').textContent='修正稿・根拠・タイトル・SNS文案・画像の権利と未確認事項を確認してください。承認は現在の作成した内容に紐づきます。実際の公開・投稿はまだ行いません。';$('approval-submit').textContent='公開用データを承認';$('approval-submit').disabled=!canApprove();$('approval-reason').value='';$('approval-panel').scrollIntoView({behavior:'smooth',block:'center'});});
   $('approval-submit').addEventListener('click',async()=>{
-    if(!run||busy||!canApprove())return;
-    try{const reason=demoMode?redactText($('approval-reason').value.trim()):protectedInput($('approval-reason').value.trim());if(approvalMode==='risk'){await approveRisk(run,reason);$('approval-panel').hidden=true;await start(run.requestedTask||'all');}else{await approvePublication(run,reason);approvalMode='risk';$('approval-panel').hidden=true;render();status(demoMode?'デモの確認が完了しました。「架空の公開実績を追加して振り返る」で最後まで体験できます。実際の記事公開は行いません。':'内容の確認が完了しました。入稿用ファイルを保存し、担当者がWordPressなどで記事を公開してください。');}}catch(e){status(e.message,true);}
+    if(!run||busy)return;
+    if(!canApprove()){approvalMessage('この記事の承認は、承認者または記事の作成者だけが行えます。担当者に依頼してください。',true);return;}
+    approvalMessage('');
+    try{const reason=demoMode?redactText($('approval-reason').value.trim()):protectedInput($('approval-reason').value.trim());if(approvalMode==='risk'){await approveRisk(run,reason);$('approval-panel').hidden=true;await start(run.requestedTask||'all');
+      // start() reports a blocked resume (for example no AI allowance) in the page status; repeat it beside the button.
+      if(run.status==='awaiting_review'&&!busy){$('approval-panel').hidden=false;approvalMessage('判断は記録しました。ただし、続きを再開できませんでした。'+$('workflow-status').textContent,true);}}else{await approvePublication(run,reason);approvalMode='risk';$('approval-panel').hidden=true;approvalMessage('');render();status(demoMode?'デモの確認が完了しました。「架空の公開実績を追加して振り返る」で最後まで体験できます。実際の記事公開は行いません。':'内容の確認が完了しました。入稿用ファイルを保存し、担当者がWordPressなどで記事を公開してください。');}}catch(e){status(e.message,true);approvalMessage(e.message,true);}
   });
   $('artifact-copy').addEventListener('click',async()=>{const out=selectedArtifact();if(!out)return;try{await navigator.clipboard.writeText(readableArtifact(out));status('内容をコピーしました。');}catch{const range=document.createRange();range.selectNodeContents($('artifact-content'));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);status('内容を選択しました。Ctrl／⌘＋Cでコピーできます。');}});
   $('artifact-download').addEventListener('click',()=>{const out=selectedArtifact();if(out)downloadText(readableArtifact(out),`記事の${WORKFLOW_AGENTS.find(a=>a.id===selected).name.replace('エージェント','')}.txt`);});
