@@ -38,21 +38,29 @@ export function createWorker(assets,specs){return{async fetch(request,env={}){
     const fingerprint=await digest(env.OPENROUTER_API_KEY.trim()),previous=healthChecks.get(fingerprint);
     if(previous&&Date.now()-previous.time<30000)return json(await previous.result);
     if(healthChecks.size>1000)healthChecks.clear();
-    const result=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+    const result=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);let connection;
       try{
         const response=await fetch('https://openrouter.ai/api/v1/key',{redirect:'error',headers:{Authorization:`Bearer ${env.OPENROUTER_API_KEY.trim()}`},signal:controller.signal});
-        let connection=response.ok?'ready':response.status===401||response.status===403?'invalid_key':response.status===429?'rate_limited':'unreachable';
+        connection=response.ok?'ready':response.status===401||response.status===403?'invalid_key':response.status===429?'rate_limited':'unreachable';
         if(response.ok){let data;try{data=JSON.parse(await readBounded(response.body,16000));}catch{connection='unreachable';}if(!data?.data||typeof data.data!=='object')connection='unreachable';else if(data.data.disabled===true)connection='invalid_key';else if(typeof data.data.limit_remaining==='number'&&data.data.limit_remaining<=0)connection='credit_required';}
         else await response.body?.cancel();
-        if(connection==='ready'){
-          const models=configuredModels(env),probePayload={...modelRoute(models),stream:false,max_tokens:24,provider:providerPolicy(),messages:[{role:'user',content:'Return only a JSON object confirming availability.'}],response_format:{type:'json_schema',json_schema:{name:'connection_check',strict:true,schema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false}}}};
-          const probe=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.OPENROUTER_API_KEY.trim()}`,'X-OpenRouter-Title':'ANGLE Review health check'},body:JSON.stringify(probePayload),signal:controller.signal});
-          if(!probe.ok){let message='';try{const error=JSON.parse(await readBounded(probe.body,16000));message=String(error.error?.message||'');}catch{}connection=providerFailure(probe.status,message);}
-          else{let output;try{output=JSON.parse(await readBounded(probe.body,64000));const content=output.choices?.[0]?.message?.content;const parsed=JSON.parse(typeof content==='string'?content:'');if(parsed?.ok!==true)connection='provider_unavailable';}catch{connection='provider_unavailable';}}
-        }
-        connectionLog(connection,response.status);return {...state,configured:connection==='ready',connection};
+        if(connection!=='ready'){connectionLog(connection,response.status);return {...state,configured:false,connection};}
       }catch{connectionLog('unreachable',0);return {...state,configured:false,connection:'unreachable'};}finally{clearTimeout(timer);}
-    })();healthChecks.set(fingerprint,{time:Date.now(),result});return json(await result);
+      // A model call can take longer than the key lookup, so the route probe has its own budget.
+      // Only a definite upstream rejection blocks production; a slow or dropped probe leaves the
+      // valid key usable and each agent request still reports its own provider failure.
+      const probeController=new AbortController(),probeTimer=setTimeout(()=>probeController.abort(),25000);
+      try{
+        const models=configuredModels(env),probePayload={...modelRoute(models),stream:false,max_tokens:64,provider:providerPolicy(),messages:[{role:'user',content:'Return only a JSON object confirming availability.'}],response_format:{type:'json_schema',json_schema:{name:'connection_check',strict:true,schema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false}}}};
+        const probe=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.OPENROUTER_API_KEY.trim()}`,'X-OpenRouter-Title':'ANGLE Review health check'},body:JSON.stringify(probePayload),signal:probeController.signal});
+        if(!probe.ok){let message='';try{const error=JSON.parse(await readBounded(probe.body,16000));message=String(error.error?.message||'');}catch{}connection=providerFailure(probe.status,message);}
+        else{let output;try{output=JSON.parse(await readBounded(probe.body,64000));}catch{}if(!Array.isArray(output?.choices)||!output.choices.length)connection='provider_unavailable';}
+        connectionLog(connection,probe.status);
+      }catch{connectionLog('probe_inconclusive',probeController.signal.aborted?408:0);}finally{clearTimeout(probeTimer);}
+      return {...state,configured:connection==='ready',connection};
+    })();healthChecks.set(fingerprint,{time:Date.now(),result});
+    const checked=await result;if(!checked.configured&&healthChecks.get(fingerprint)?.result===result)healthChecks.delete(fingerprint);
+    return json(checked);
   }
   if(url.pathname==='/api/agents'){
     if(request.method!=='POST')return json({error:'method_not_allowed'},405);
