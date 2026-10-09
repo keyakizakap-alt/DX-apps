@@ -2,7 +2,7 @@ import {workspaceState,canEdit,canApprove} from './workspace-client.js';
 import {validateSnapshot} from './project-snapshots.js';
 import {editableFields,editedOutput,saveArtifactEdit,prepareRegeneration,restoreRegeneration} from './artifact-edits.js';
 import {demoAgent,DEMO_METRICS} from './demo.js';
-import { SAMPLE } from './engine.js';
+import { SAMPLE, sourceLabel } from './engine.js';
 import { aiConfigured,aiSettings,configureAI,protectedInput,discoverServer,connectionMessage } from './provider.js';
 import {taskPlan} from './tasks.js';
 import { redactText,audit,verifyAudit } from './security.js';
@@ -166,7 +166,7 @@ function renderArtifact(){
   if(out.facts?.length)html+=`<h3>根拠を確認できた情報</h3>${out.facts.map(f=>`<div class="evidence"><strong>${esc(f.claim)}</strong><blockquote>${esc(f.evidence)}</blockquote><div class="source-context">${esc(f.source_id)}</div></div>`).join('')}`;
   if(out.gaps?.length)html+=`<h3>追加で確認すること</h3><ul>${out.gaps.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
   if(out.findings){
-    html+=out.findings.length?out.findings.map(f=>`<div class="artifact-finding"><span class="badge">${esc(f.category)}</span><h3>${esc(f.title)}</h3><p>${esc(f.explanation)}</p><div class="quoted">${esc(f.quote)}</div><div class="evidence"><div class="evidence-label">根拠 ${esc(f.sourceId)}</div><blockquote>${esc(f.evidence)}</blockquote></div>${f.suggestion?`<h4>修正案</h4><p>${esc(f.suggestion)}</p>`:''}</div>`).join(''):'<p>確認候補は見つかりませんでした。公開前に、原稿と取材資料を編集者が最終確認してください。</p>';
+    html+=out.findings.length?out.findings.map(f=>`<div class="artifact-finding"><span class="badge">${esc(f.category)}</span><h3>${esc(f.title)}</h3><p>${esc(f.explanation)}</p><div class="quoted">${esc(f.quote)}</div><div class="evidence"><div class="evidence-label">根拠：${esc(sourceLabel(f.sourceId))}</div><blockquote>${esc(f.evidence)}</blockquote></div>${f.suggestion?`<h4>修正案</h4><p>${esc(f.suggestion)}</p>`:''}</div>`).join(''):'<p>確認候補は見つかりませんでした。公開前に、原稿と取材資料を編集者が最終確認してください。</p>';
     if(item.validated?.rejected)html+=`<div class="notice">${item.validated.rejected}件は根拠を検証できなかったため除外しました。</div>`;
   }
   if(['final_check','titles','social'].includes(selected)&&run?.editorialChecks?.length)html+=`<h3>公開前に資料で確認すること</h3>${run.editorialChecks.filter(c=>selected==='final_check'||c.title.startsWith('タイトル・SNS')).map(c=>`<div class="editorial-check"><strong>${esc(c.title)}</strong><p>${esc(c.description)}</p></div>`).join('')}`;
