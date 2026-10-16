@@ -13,7 +13,7 @@ try{
  await p.waitForTimeout(300);assert.equal(errors.length,0,'History network failure must be handled in the dialog');assert.match(await p.locator('#history-list').innerText(),/読み込|取得|通信/);
  failHistory=false;await p.locator('#history-retry').click();await p.waitForFunction(()=>document.getElementById('history-list').textContent.includes('履歴はまだありません'));
  await p.locator('#history-dialog [aria-label="閉じる"]').click();
- p.on('dialog',d=>d.accept().catch(()=>{}));await p.locator('#workspace-login').click();await p.waitForTimeout(300);assert.equal(errors.length,0,'Logout failure must not escape the click handler');assert.match(await p.locator('#autosave-status').innerText(),/ログアウト/);assert.equal(await p.locator('#workspace-login').innerText(),'ログアウト');
+ p.on('dialog',d=>d.accept().catch(()=>{}));await p.locator('#workspace-login').click();await p.waitForTimeout(300);assert.equal(errors.length,0,'Logout failure must not escape the click handler');await p.waitForFunction(()=>document.getElementById('notice').textContent.includes('ログアウトできません'));assert.equal(await p.locator('#notice').isVisible(),true);assert.equal(await p.locator('#workspace-login').innerText(),'ログアウト');
  // Cancel opening another article: retain both the input and the chooser.
  await p.evaluate(async()=>{(await import('/workspace-client.js')).setCurrentProject(null);});
  const project={id,owner_id:'owner',title:'保存済みの記事',revision:1,updated_at:new Date().toISOString(),details:{},snapshot:{version:1,input:{topic:'保存済みの記事',audience:'読者',goal:'目的',media:'ビジネスメディア',targetLength:1500,sources:'',rules:'',transcript:'',metrics:'',webSearch:false},run:null}};
