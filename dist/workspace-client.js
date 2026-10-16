@@ -3,11 +3,25 @@ const $=id=>document.getElementById(id);
 export function workspaceState(){return {user,available,current,role,saveState};}
 export function canEdit(){return !current||role!=='viewer';}
 export function canApprove(){return !current||['owner','approver'].includes(role);}
-export async function workspaceRequest(path,options={}){const r=await fetch(path,{cache:'no-store',...options,headers:{'Content-Type':'application/json',...options.headers}});let d;try{d=await r.json();}catch{}if(!r.ok){const messages={login_required:'ログインしてからお試しください。',email_not_allowed:'会社で指定されたメールアドレスを入力してください。',invalid_code:'確認コードを確認してください。',save_conflict:'他の担当者が更新しました。最新の内容を開き直してください。',permission_denied:'この操作を行う権限がありません。',rate_limited:'少し待ってから、もう一度お試しください。'};const e=new Error(messages[d?.error]||'保存・読み込みを完了できませんでした。入力内容は画面に残しています。');e.code=d?.error;throw e;}return d;}
+export async function workspaceRequest(path,options={}){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+ const abort=()=>controller.abort();options.signal?.addEventListener('abort',abort,{once:true});if(options.signal?.aborted)controller.abort();
+ try{
+  const r=await fetch(path,{cache:'no-store',...options,signal:controller.signal,headers:{'Content-Type':'application/json',...options.headers}});
+  let d,parsed=false;try{d=await r.json();parsed=true;}catch{if(controller.signal.aborted)throw new DOMException('Timeout','AbortError');}
+  if(!r.ok){const messages={login_required:'ログインしてからお試しください。',email_not_allowed:'会社で指定されたメールアドレスを入力してください。',invalid_code:'確認コードを確認してください。',save_conflict:'他の担当者が更新しました。最新の内容を開き直してください。',permission_denied:'この操作を行う権限がありません。',rate_limited:'少し待ってから、もう一度お試しください。'};const e=new Error(messages[d?.error]||'保存・読み込みを完了できませんでした。入力内容は画面に残しています。');e.code=d?.error;throw e;}
+  if(!parsed)throw new Error('応答を読み取れませんでした。入力内容は画面に残しています。もう一度お試しください。');
+  return d;
+ }catch(e){
+  if(controller.signal.aborted)throw new Error('通信に時間がかかっています。入力内容は画面に残しています。接続を確認して、もう一度お試しください。');
+  if(e instanceof TypeError)throw new Error('通信できませんでした。入力内容は画面に残しています。接続を確認して、もう一度お試しください。');
+  throw e;
+ }finally{clearTimeout(timer);options.signal?.removeEventListener('abort',abort);}
+}
 const post=(path,body)=>workspaceRequest(path,{method:'POST',body:JSON.stringify(body)});
 export function setCurrentProject(project,newRole='owner'){current=project;role=newRole;window.dispatchEvent(new Event('workspace:changed'));}
 export function updateSaveState(value){saveState=value;if($('autosave-status'))$('autosave-status').textContent=value;}
 export async function loadProjects(){return workspaceRequest('/api/workspace/projects');}
 export async function saveProject(snapshot,details){if(!available||!user||!canEdit())return null;const project=await post('/api/workspace/save',{id:current?.id||null,revision:current?.revision||0,snapshot,details});current=project;updateSaveState('保存しました');return project;}
-export async function initWorkspaceLogin(){try{const d=await workspaceRequest('/api/auth/status');user=d.user;available=d.available;}catch{}const button=$('workspace-login');button.hidden=!available;button.textContent=user?'ログアウト':'ログインして保存';button.onclick=async()=>{if(user){if(!confirm('保存した記事を確認してからログアウトしますか？'))return;await post('/api/auth/logout',{});location.reload();}else $('login-dialog').showModal();};$('login-send').onclick=async()=>{try{await post('/api/auth/code',{email:$('login-email').value.trim()});$('login-status').textContent='メールに届いた確認コードを入力してください。';$('login-code').focus();}catch(e){$('login-status').textContent=e.message;}};$('login-verify').onclick=async()=>{try{const d=await post('/api/auth/verify',{email:$('login-email').value.trim(),code:$('login-code').value.trim()});user=d.user;$('login-dialog').close();button.textContent='ログアウト';window.dispatchEvent(new Event('workspace:changed'));}catch(e){$('login-status').textContent=e.message;}};setInterval(()=>{if(user)void post('/api/auth/refresh',{}).catch(()=>{});},25*60*1000);window.dispatchEvent(new Event('workspace:changed'));}
+export async function initWorkspaceLogin(){try{const d=await workspaceRequest('/api/auth/status');user=d.user;available=d.available;}catch{}const button=$('workspace-login');button.hidden=!available;button.textContent=user?'ログアウト':'ログインして保存';button.onclick=async()=>{if(user){if(!confirm('保存した記事を確認してからログアウトしますか？'))return;button.disabled=true;try{await post('/api/auth/logout',{});location.reload();}catch{updateSaveState('ログアウトできませんでした。入力内容は残っています。接続を確認し、もう一度お試しください。');}finally{button.disabled=false;}}else $('login-dialog').showModal();};$('login-send').onclick=async()=>{try{await post('/api/auth/code',{email:$('login-email').value.trim()});$('login-status').textContent='メールに届いた確認コードを入力してください。';$('login-code').focus();}catch(e){$('login-status').textContent=e.message;}};$('login-verify').onclick=async()=>{try{const d=await post('/api/auth/verify',{email:$('login-email').value.trim(),code:$('login-code').value.trim()});user=d.user;$('login-dialog').close();button.textContent='ログアウト';window.dispatchEvent(new Event('workspace:changed'));}catch(e){$('login-status').textContent=e.message;}};setInterval(()=>{if(user)void post('/api/auth/refresh',{}).catch(()=>{});},25*60*1000);window.dispatchEvent(new Event('workspace:changed'));}
 export {post as workspacePost};
