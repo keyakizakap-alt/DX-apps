@@ -8,3 +8,8 @@ test-results
 production-records
 *.tar.gz
 .openai
+
+# repo-harness（開発用。配信しない）
+/docs/specs
+/scripts/harness
+/tests/harness.test.mjs
