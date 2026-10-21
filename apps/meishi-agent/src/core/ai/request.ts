@@ -23,6 +23,8 @@ export const ExternalDraftRequest = z
     destination: z.string().max(100),
     subjectCount: z.literal(1),
     tone: z.enum(['formal', 'friendly']),
+    /** Name/company/department were replaced by 〔…〕 placeholders before sending. */
+    pseudonymized: z.boolean(),
     fields: z
       .object({
         recipientName: fieldText(80).optional(),
@@ -40,6 +42,13 @@ export const ExternalDraftRequest = z
 export type ExternalDraftRequest = z.infer<typeof ExternalDraftRequest>;
 
 export const MAX_REQUEST_CHARS = 4000;
+
+/** Placeholders used instead of identifying values when pseudonymizing (restored on the device). */
+export const PLACEHOLDERS = {
+  recipientName: '〔相手の氏名〕',
+  company: '〔相手の会社〕',
+  department: '〔相手の部署〕',
+} as const satisfies Partial<Record<AiFieldKey, string>>;
 
 export const DraftResult = z.object({
   subject: z.string().max(200),

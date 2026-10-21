@@ -33,13 +33,17 @@ export default function Approve() {
     );
   }
   const all = Object.keys(AI_FIELD_LABELS) as AiFieldKey[];
+  const info = state.aiServer?.info;
   const values = availableFields(view, view.encounters[0]);
+  const rebuild = async (nextInclude: AiFieldKey[], nextPseudo: boolean) => {
+    const p = await buildPreview(view, view.encounters[0], nextInclude, 'formal', state.aiServer!.destination!, undefined, nextPseudo);
+    externalPreviewSlot.set(p);
+    setPreview(p);
+  };
   const toggle = async (k: AiFieldKey, on: boolean) => {
     const next = on ? [...include, k] : include.filter((x) => x !== k);
     setInclude(next);
-    const p = await buildPreview(view, view.encounters[0], next, 'formal', state.aiServer!.destination!);
-    externalPreviewSlot.set(p);
-    setPreview(p);
+    await rebuild(next, preview.request.pseudonymized);
   };
   const cancel = async () => {
     await session.audit('ai.external_denied', 1, 'denied');
@@ -59,10 +63,35 @@ export default function Approve() {
       ))}
       <Card>
         <KeyValue label="目的" value="メール下書きの文面作成（送信はしません）" />
-        <KeyValue label="送信先" value={preview.request.destination} testID="approve-destination" />
+        <KeyValue label="送信先" value={info ? `${info.provider}（${info.model}）` : preview.request.destination} testID="approve-destination" />
+        {info ? (
+          <>
+            <KeyValue label="料金" value={info.cost} />
+            <KeyValue label="データの扱い（提供元）" value={info.dataPolicy} />
+            <KeyValue label="保存・処理地域" value={info.region} />
+          </>
+        ) : null}
         <KeyValue label="対象人数" value={`${preview.request.subjectCount}人`} />
         <KeyValue label="承認の有効期限" value={`確認から約${expiresIn}分・1回限り`} />
         <KeyValue label="内容ハッシュ（SHA-256）" value={`${preview.hash.slice(0, 16)}…`} />
+      </Card>
+      <View style={{ height: space.md }} />
+      <Card>
+        <Toggle
+          label="氏名・会社名・部署を伏せ字にして送る（推奨）"
+          description="外部AIには〔相手の氏名〕などの伏せ字だけが届き、返ってきた文面はこの端末で実名に戻します。会話メモ内の氏名・会社名も置き換えます。"
+          value={preview.request.pseudonymized}
+          onChange={(v) => rebuild(include, v)}
+          disabled={Boolean(result)}
+          testID="pseudonymize"
+        />
+        {preview.request.pseudonymized ? (
+          <T variant="small" testID="substitutions">
+            端末内だけで使う対応表（送信されません）: {Object.entries(preview.substitutions).map(([ph, real]) => `${ph}＝${real}`).join('、') || 'なし'}
+          </T>
+        ) : (
+          <Banner tone="danger" title="実名がそのまま外部AIに送られます">伏せ字をオフにすると、氏名・会社名が提供元に届きます。必要な場合だけオフにしてください。</Banner>
+        )}
       </Card>
       <View style={{ height: space.md }} />
       <Card>

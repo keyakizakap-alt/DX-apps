@@ -12,6 +12,14 @@ import { ApiClient, type ApiClientOptions } from './sync/api-client';
 import { SyncEngine, type SyncReport, type SyncState } from './sync/engine';
 import { SyncHttpError } from './sync/protocol';
 
+export interface AiDestinationInfo {
+  provider: string;
+  model: string;
+  cost: string;
+  dataPolicy: string;
+  region: string;
+}
+
 export interface Platform {
   kind: 'web' | 'native';
   provider: CryptoProvider;
@@ -70,7 +78,7 @@ export interface AppState {
   unlockLockedUntil: number;
   settings: Settings;
   pendingRecovery?: { recoveryKey: string; groups: [number, number] };
-  aiServer: { available: boolean; destination: string | null } | null;
+  aiServer: { available: boolean; destination: string | null; info: AiDestinationInfo | null } | null;
   ocrRunning: boolean;
   revision: number;
 }
@@ -180,7 +188,7 @@ export class AppController {
   async checkServer() {
     try {
       const h = await this.api.health();
-      this.set({ aiServer: { available: h.ai, destination: h.aiDestination } });
+      this.set({ aiServer: { available: h.ai, destination: h.aiDestination, info: h.aiInfo ?? null } });
     } catch {
       this.set({ aiServer: null });
     }

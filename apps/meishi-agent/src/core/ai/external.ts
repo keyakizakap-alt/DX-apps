@@ -5,7 +5,7 @@ import type { Encounter } from '../domain/schemas';
 import type { ContactView } from '../domain/views';
 import type { ApiClient } from '../sync/api-client';
 import type { VaultSession } from '../store/session';
-import { AI_FIELD_LABELS, ExternalDraftRequest, MAX_REQUEST_CHARS, canonicalJson, requestHash, type AiFieldKey, type DraftResult } from './request';
+import { AI_FIELD_LABELS, ExternalDraftRequest, MAX_REQUEST_CHARS, PLACEHOLDERS, canonicalJson, requestHash, type AiFieldKey, type DraftResult } from './request';
 
 export const DEFAULT_FIELDS: AiFieldKey[] = ['recipientName', 'company', 'title', 'encounterDate', 'event', 'conversation', 'nextAction'];
 
@@ -18,6 +18,8 @@ export interface ExternalPreview {
   fields: { key: AiFieldKey; label: string; value: string }[];
   warnings: string[];
   createdAt: number;
+  /** placeholder → real value. Kept on the device only; never part of the request. */
+  substitutions: Record<string, string>;
 }
 
 export function availableFields(view: ContactView, encounter?: Encounter): Partial<Record<AiFieldKey, string>> {
@@ -34,14 +36,65 @@ export function availableFields(view: ContactView, encounter?: Encounter): Parti
   };
 }
 
-export async function buildPreview(view: ContactView, encounter: Encounter | undefined, include: AiFieldKey[], tone: 'formal' | 'friendly', destination: string, now = Date.now()): Promise<ExternalPreview> {
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Replaces the person's name, company and department with 〔…〕 placeholders, including where
+ * they appear inside free-text fields (event, conversation, next action). Name variants without
+ * the space ("架空花子") and the family name alone are also replaced.
+ */
+export function pseudonymizeFields(fields: Partial<Record<AiFieldKey, string>>): { fields: Partial<Record<AiFieldKey, string>>; substitutions: Record<string, string> } {
+  const substitutions: Record<string, string> = {};
+  const replacements: [string, string][] = [];
+  for (const key of Object.keys(PLACEHOLDERS) as (keyof typeof PLACEHOLDERS)[]) {
+    const real = fields[key]?.trim();
+    if (!real) continue;
+    substitutions[PLACEHOLDERS[key]] = real;
+    const variants = new Set([real, real.replace(/[\s\u3000]+/g, '')]);
+    if (key === 'recipientName') {
+      const family = real.split(/[\s\u3000]+/)[0];
+      if (family && family.length >= 2 && family !== real) variants.add(family);
+    }
+    if (key === 'company') variants.add(real.replace(/(株式会社|有限会社|合同会社|\(株\)|（株）)/g, '').trim());
+    for (const v of [...variants].filter((x) => x.length >= 2).sort((a, b) => b.length - a.length)) replacements.push([v, PLACEHOLDERS[key]]);
+  }
+  const out: Partial<Record<AiFieldKey, string>> = {};
+  for (const [k, v] of Object.entries(fields) as [AiFieldKey, string][]) {
+    if (k in PLACEHOLDERS && v.trim()) {
+      out[k] = PLACEHOLDERS[k as keyof typeof PLACEHOLDERS];
+      continue;
+    }
+    let text = v;
+    for (const [real, ph] of replacements) text = text.replace(new RegExp(escapeRe(real), 'g'), ph);
+    out[k] = text;
+  }
+  return { fields: out, substitutions };
+}
+
+/** Puts the real values back into AI output on the device. Only exact placeholders are replaced. */
+export function restorePlaceholders(draft: DraftResult, substitutions: Record<string, string>): DraftResult {
+  const fix = (s: string) => Object.entries(substitutions).reduce((acc, [ph, real]) => acc.split(ph).join(real), s);
+  return { subject: fix(draft.subject), body: fix(draft.body), caveats: draft.caveats.map(fix) };
+}
+
+export async function buildPreview(
+  view: ContactView,
+  encounter: Encounter | undefined,
+  include: AiFieldKey[],
+  tone: 'formal' | 'friendly',
+  destination: string,
+  now = Date.now(),
+  pseudonymize = true,
+): Promise<ExternalPreview> {
   const values = availableFields(view, encounter);
-  const fields: ExternalDraftRequest['fields'] = {};
+  let fields: Partial<Record<AiFieldKey, string>> = {};
   for (const key of include) {
     const v = values[key]?.trim();
-    if (v) (fields as Record<string, string>)[key] = key === 'conversation' ? v.slice(0, 1500) : v.slice(0, 400);
+    if (v) fields[key] = key === 'conversation' ? v.slice(0, 1500) : v.slice(0, 400);
   }
-  const request = ExternalDraftRequest.parse({ purpose: 'draft_email', destination, subjectCount: 1, tone, fields });
+  let substitutions: Record<string, string> = {};
+  if (pseudonymize) ({ fields, substitutions } = pseudonymizeFields(fields));
+  const request = ExternalDraftRequest.parse({ purpose: 'draft_email', destination, subjectCount: 1, tone, pseudonymized: pseudonymize, fields });
   const json = canonicalJson(request);
   if (json.length > MAX_REQUEST_CHARS) throw new Error('送信内容が長すぎます。会話メモを短くするか項目を外してください。');
   const warnings: string[] = [];
@@ -55,6 +108,7 @@ export async function buildPreview(view: ContactView, encounter: Encounter | und
     fields: Object.entries(fields).map(([key, value]) => ({ key: key as AiFieldKey, label: AI_FIELD_LABELS[key as AiFieldKey], value: String(value) })),
     warnings,
     createdAt: now,
+    substitutions,
   };
 }
 
@@ -80,7 +134,7 @@ export async function approveAndSend(opts: { session: VaultSession; api: ApiClie
     const { consentId } = await api.createConsent(preview.hash, preview.request.destination);
     const { draft } = await api.draft(consentId, preview.request);
     await session.audit('ai.external_sent', preview.request.subjectCount);
-    return draft;
+    return restorePlaceholders(draft, preview.substitutions);
   } catch (e) {
     await session.audit('ai.external_failed', 1, 'failure');
     throw e;

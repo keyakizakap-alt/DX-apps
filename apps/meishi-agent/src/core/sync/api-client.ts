@@ -56,7 +56,16 @@ export class ApiClient implements SyncTransport {
   }
 
   health() {
-    return this.json(z.object({ ok: z.boolean(), ai: z.boolean(), aiDestination: z.string().nullable() }), 'GET', '/api/health');
+    return this.json(
+      z.object({
+        ok: z.boolean(),
+        ai: z.boolean(),
+        aiDestination: z.string().nullable(),
+        aiInfo: z.object({ provider: z.string(), model: z.string(), cost: z.string(), dataPolicy: z.string(), region: z.string() }).nullable().optional(),
+      }),
+      'GET',
+      '/api/health',
+    );
   }
 
   startSignIn(email: string) {

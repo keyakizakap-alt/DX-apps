@@ -8,7 +8,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { ExternalDraftRequest, MAX_REQUEST_CHARS, canonicalJson, requestHash } from '../src/core/ai/request.ts';
 import { MAX_BLOB_BYTES, MAX_PULL, PushRequest, RecoveryEnvelopeWire } from '../src/core/sync/protocol.ts';
-import { AiRefusalError, type AiProvider } from './ai-provider.mts';
+import { AiRateLimitError, AiRefusalError, type AiProvider } from './ai-provider.mts';
 import { tx, type Db } from './db.mts';
 
 export interface Mailer {
@@ -141,7 +141,7 @@ export function createApp(cfg: AppConfig) {
   const routes: Array<{ method: string; path: RegExp; handler: (ctx: Ctx, m: RegExpExecArray) => Promise<void> }> = [];
   const route = (method: string, path: RegExp, handler: (ctx: Ctx, m: RegExpExecArray) => Promise<void>) => routes.push({ method, path, handler });
 
-  route('GET', /^\/api\/health$/, async (ctx) => send(ctx.res, 200, { ok: true, ai: Boolean(cfg.ai), aiDestination: cfg.ai?.destination ?? null }));
+  route('GET', /^\/api\/health$/, async (ctx) => send(ctx.res, 200, { ok: true, ai: Boolean(cfg.ai), aiDestination: cfg.ai?.destination ?? null, aiInfo: cfg.ai?.info ?? null }));
 
   route('POST', /^\/api\/auth\/start$/, async (ctx) => {
     rateLimit(`otp-ip:${ctx.ip}`, 10);
@@ -343,6 +343,7 @@ export function createApp(cfg: AppConfig) {
       const draft = await cfg.ai.generate(body.request, abort.signal);
       send(ctx.res, 200, { draft, destination: cfg.ai.destination });
     } catch (e) {
+      if (e instanceof AiRateLimitError) throw new HttpError(429, 'ai_rate_limited', '外部AIの無料枠の上限に達しました。しばらく待つか、ローカルの下書きを利用してください。');
       if (e instanceof AiRefusalError) throw new HttpError(422, 'ai_refused', 'AIが生成を辞退しました。ローカルの下書きを利用してください。');
       throw new HttpError(502, 'ai_failed', '外部AIの呼び出しに失敗しました。ローカルの下書きを利用してください。');
     } finally {

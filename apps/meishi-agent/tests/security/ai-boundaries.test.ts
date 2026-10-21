@@ -110,9 +110,10 @@ describe('SEC-09 / SEC-10 external AI consent', () => {
     server = await startTestServer({
       ai: {
         destination: DEST,
+        info: { provider: 'test', model: 'echo', cost: '無料', dataPolicy: 'test', region: 'local' },
         async generate(req) {
           received.push(req);
-          return { subject: '件名（モック）', body: '本文（モック）', caveats: [] };
+          return { subject: '件名（モック）', body: `${req.fields.recipientName ?? ''} 様 本文（モック）`, caveats: [] };
         },
       },
     });
@@ -145,6 +146,7 @@ describe('SEC-09 / SEC-10 external AI consent', () => {
     const preview = await buildPreview(view, view.encounters[0], ['recipientName', 'event'], 'formal', DEST);
     const draft = await approveAndSend({ session, api: auth.api, enabled: true, preview });
     expect(draft.subject).toBe('件名（モック）');
+    expect(draft.body, '伏せ字が端末内で実名に戻っていない').toContain('架空 花子 様');
     expect(received).toHaveLength(1);
     expect(Object.keys(received[0]!.fields).sort()).toEqual(['event', 'recipientName']);
     expect(JSON.stringify(received[0])).not.toContain('example.test'); // e-mail never sent
@@ -196,5 +198,25 @@ describe('SEC-14 audit log contains no personal data', () => {
       if (p.email) expect(text.includes(p.email)).toBe(false);
     }
     for (const e of events) expect(Object.keys(e).sort()).toEqual(['action', 'at', 'count', 'outcome']);
+  });
+});
+
+describe('pseudonymization (default on)', () => {
+  it('name, company and department never reach the provider, even inside free text; real values return on device', async () => {
+    const { session, ids } = await setup();
+    const enc = session.all('encounter').find((e) => e.contactId === ids.hanako)!;
+    await session.commit([{ ...enc, conversation: '架空さんとテスト商事の新規案件について。架空花子さんは乗り気。' }]);
+    const view = session.index.views.get(ids.hanako!)!;
+    const preview = await buildPreview(view, view.encounters[0], [...DEFAULT_FIELDS, 'department'], 'formal', DEST);
+    expect(preview.request.pseudonymized).toBe(true);
+    for (const real of ['架空 花子', '架空花子', '架空さん', 'テスト商事', '営業本部']) expect(preview.json.includes(real), `送信本文に「${real}」が残っている`).toBe(false);
+    expect(preview.json).toContain('〔相手の氏名〕');
+    expect(Object.values(preview.substitutions)).toContain('架空 花子');
+    expect(JSON.stringify(preview.request)).not.toContain('substitutions');
+  });
+  it('restorePlaceholders only replaces exact placeholders', async () => {
+    const { restorePlaceholders } = await import('@/core/ai/external');
+    const out = restorePlaceholders({ subject: '〔相手の会社〕 〔相手の氏名〕様', body: '〔不明〕のまま', caveats: ['〔相手の氏名〕'] }, { '〔相手の氏名〕': '架空 花子', '〔相手の会社〕': 'テスト商事株式会社' });
+    expect(out).toEqual({ subject: 'テスト商事株式会社 架空 花子様', body: '〔不明〕のまま', caveats: ['架空 花子'] });
   });
 });

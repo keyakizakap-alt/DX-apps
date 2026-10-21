@@ -69,7 +69,7 @@ export default function Settings() {
           />
           <Row>
             <Badge label={state.settings.externalAiEnabled ? '外部AI: 許可（毎回承認）' : '外部AI: オフ（既定）'} tone={state.settings.externalAiEnabled ? 'warn' : 'ok'} />
-            <Badge label={state.aiServer?.available ? `サーバー側: 有効（${state.aiServer.destination}）` : 'サーバー側: 未設定'} tone="neutral" />
+            <Badge label={state.aiServer?.available ? `サーバー側: 有効（${state.aiServer.info?.provider ?? state.aiServer.destination}・${state.aiServer.info?.cost ?? ''}）` : 'サーバー側: 未設定'} tone="neutral" />
           </Row>
           <T variant="small">端末内の検索・フォロー提案・テンプレート下書きは、外部AIの設定に関係なく端末内で動作します。</T>
         </Card>

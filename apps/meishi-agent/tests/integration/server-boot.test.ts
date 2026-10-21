@@ -24,7 +24,7 @@ describe('server entrypoint', () => {
         res = await fetch(`http://127.0.0.1:${port}/api/health`).catch(() => undefined);
       }
       expect(res?.status, `サーバーが起動しない。出力: ${output}。直し方: server/*.mts が型消去だけで動く構文か（erasableSyntaxOnly）を確認する`).toBe(200);
-      expect(await res!.json()).toEqual({ ok: true, ai: false, aiDestination: null });
+      expect(await res!.json()).toEqual({ ok: true, ai: false, aiDestination: null, aiInfo: null });
       expect(res!.headers.get('content-security-policy')).toContain("default-src 'self'");
     } finally {
       child.kill();

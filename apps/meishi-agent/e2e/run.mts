@@ -577,6 +577,13 @@ try {
     assert.deepEqual(Object.keys(sent.request.fields).sort(), Object.keys(JSON.parse(shown).fields).sort(), '送信した項目がプレビューと異なる');
     assert.ok(!drafts[0]!.body.includes('外部送信テスト用の会話メモ'), '外した会話メモが送信された');
     assert.ok((await tid(laptop.page, 'external-result').innerText()).includes('受け取った項目'));
+    // Pseudonymization (default on): no real name/company in the preview or on the wire, restored on device.
+    for (const real of ['架空 花子', '架空花子', 'テスト商事']) {
+      assert.ok(!shown.includes(real), `送信本文プレビューに実名「${real}」`);
+      assert.ok(!drafts[0]!.body.includes(real), `外部AIへの通信に実名「${real}」`);
+    }
+    assert.ok(shown.includes('〔相手の氏名〕'), '伏せ字になっていない');
+    assert.ok((await tid(laptop.page, 'external-result').innerText()).includes('架空 花子 様'), '結果が端末内で実名に戻っていない');
   });
 
   await scenario('Androidサイズ: 初期画面・保管庫作成・下部タブ・横スクロールなし', async () => {
