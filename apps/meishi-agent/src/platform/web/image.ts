@@ -55,12 +55,11 @@ export async function processImageFile(file: File): Promise<ProcessedImage[]> {
 
 interface PdfJs {
   GlobalWorkerOptions: { workerSrc: string };
-  getDocument(src: { data: Uint8Array; isEvalSupported: boolean; disableFontFace?: boolean }): { promise: Promise<PdfDoc> };
+  getDocument(src: { data: Uint8Array; isEvalSupported: boolean; disableFontFace?: boolean }): { promise: Promise<PdfDoc>; destroy(): Promise<void> };
 }
 interface PdfDoc {
   numPages: number;
   getPage(n: number): Promise<{ getViewport(o: { scale: number }): { width: number; height: number }; render(o: { canvasContext: CanvasRenderingContext2D; viewport: unknown; canvas: HTMLCanvasElement }): { promise: Promise<void> } }>;
-  destroy(): Promise<void>;
 }
 
 async function loadPdfJs(): Promise<PdfJs> {
@@ -75,7 +74,9 @@ async function loadPdfJs(): Promise<PdfJs> {
 
 export async function pdfToImages(file: File): Promise<ProcessedImage[]> {
   const pdfjs = await loadPdfJs();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  // isEvalSupported:false keeps pdf.js from compiling fonts with eval (blocked by our CSP anyway).
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false });
+  const doc = await task.promise;
   try {
     if (doc.numPages > MAX_PDF_PAGES) throw new ImportError(`${file.name}: ${MAX_PDF_PAGES}ページを超えるPDFは分割してください（${doc.numPages}ページ）`);
     const out: ProcessedImage[] = [];
@@ -92,7 +93,7 @@ export async function pdfToImages(file: File): Promise<ProcessedImage[]> {
     }
     return out;
   } finally {
-    await doc.destroy();
+    await task.destroy(); // frees the worker and document (PDFDocumentProxy.destroy was removed in pdf.js 6)
   }
 }
 

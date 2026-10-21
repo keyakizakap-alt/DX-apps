@@ -24,19 +24,40 @@ export default function Assistant() {
   const [copied, setCopied] = useState(false);
   const [extError, setExtError] = useState<string | null>(null);
 
-  const run = async (text: string) => {
-    setQ(text);
-    setCopied(false);
+  const ask = async (text: string) => {
     const a = await askAssistant(session, text, new Date());
     setAnswer(a);
     setDraft(a.draft ?? null);
   };
-  useEffect(() => {
-    if (params.contact && session.index.views.get(params.contact)) {
-      setDraft(localDraft(session.index.views.get(params.contact)!));
+  const run = (text: string) => {
+    setQ(text);
+    setCopied(false);
+    return ask(text);
+  };
+  const [handled, setHandled] = useState<string | undefined>(undefined);
+  const paramKey = `${params.contact ?? ''}|${params.q ?? ''}`;
+  if (handled !== paramKey) {
+    // React to new route params during render (no effect): draft for ?contact=, otherwise run ?q=.
+    setHandled(paramKey);
+    if (params.q) setQ(params.q);
+    const view = params.contact ? session.index.views.get(params.contact) : undefined;
+    if (view) {
+      setDraft(localDraft(view));
       setAnswer(null);
-    } else if (params.q) void run(params.q);
-  }, [params.contact, params.q]);
+    }
+  }
+  useEffect(() => {
+    if (params.contact || !params.q) return;
+    let cancelled = false;
+    void askAssistant(session, params.q, new Date()).then((a) => {
+      if (cancelled) return;
+      setAnswer(a);
+      setDraft(a.draft ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, params.q, params.contact]);
 
   const externalReady = state.settings.externalAiEnabled && state.aiServer?.available && state.account;
   const openExternal = async () => {

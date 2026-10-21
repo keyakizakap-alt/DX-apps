@@ -1,10 +1,9 @@
 // Application controller shared by every screen. Platform-neutral (no React / RN imports) so the
 // full lifecycle — create vault, lock/unlock, sync, import — is testable in Node.
 import { readAudit, recordAudit, type AuditEvent } from './audit';
-import { DecryptionError, type CryptoProvider } from './crypto/provider';
+import { DecryptionError, type CryptoProvider , AeadKey } from './crypto/provider';
 import { RecoveryKeyFormatError, pickConfirmationGroups, recoveryKeyGroup } from './crypto/recovery-key';
 import { createVault, deriveVaultKeys, unlockWithPasscode, unlockWithRecoveryKey, wrapWithPasscode, type CreatedVault, type PasscodeEnvelope, type Pbkdf2, type RecoveryEnvelope } from './crypto/vault';
-import type { AeadKey } from './crypto/provider';
 import { recoverInterrupted, runQueue, type QueueRunner } from './scan/queue';
 import type { OcrEngine } from './scan/ocr';
 import { VaultSession } from './store/session';

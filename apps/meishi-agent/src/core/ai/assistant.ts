@@ -20,7 +20,7 @@ export interface LocalDraft {
   contactId: string;
   subject: string;
   body: string;
-  sources: Array<{ id: string; label: string }>;
+  sources: { id: string; label: string }[];
   assumptions: string[];
 }
 

@@ -1,11 +1,11 @@
 // S06 OCRレビュー (+ S07 duplicate decision before saving). OCR values are proposals: every field
 // shows its source and confidence, and nothing is marked verified without a user action.
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { findDuplicateCandidates } from '../../../core/domain/duplicates';
 import { needsVerification } from '../../../core/domain/ocr-parse';
-import type { CardField, CardFieldKey } from '../../../core/domain/schemas';
+import type { BusinessCard, CardField, CardFieldKey, ScanItem } from '../../../core/domain/schemas';
 import { activeItems } from '../../../core/scan/queue';
 import { initialFields, ReviewValidationError, saveReviewedCard, type ReviewDecision } from '../../../core/scan/review';
 import { useVault } from '../../../ui/app-context';
@@ -13,7 +13,7 @@ import { CardImage } from '../../../ui/card-image';
 import { Badge, Banner, Button, Card, EmptyState, Row, Screen, T } from '../../../ui/components';
 import { color, DESKTOP_MIN_WIDTH, font, MIN_TAP, space } from '../../../ui/theme';
 
-const FIELD_ORDER: Array<{ key: CardFieldKey; label: string; required?: boolean; keyboard?: 'email-address' | 'phone-pad' | 'url' }> = [
+const FIELD_ORDER: { key: CardFieldKey; label: string; required?: boolean; keyboard?: 'email-address' | 'phone-pad' | 'url' }[] = [
   { key: 'fullName', label: '氏名', required: true },
   { key: 'fullNameKana', label: 'よみ / ローマ字' },
   { key: 'company', label: '会社名', required: true },
@@ -31,19 +31,30 @@ export default function Review() {
   const params = useLocalSearchParams<{ item?: string; card?: string; manual?: string }>();
   const session = useVault();
   const router = useRouter();
-  const desktop = useWindowDimensions().width >= DESKTOP_MIN_WIDTH;
   const item = params.item ? session.get(params.item, 'scanItem') : undefined;
   const heldCard = params.card ? session.get(params.card, 'card') : undefined;
-  const [fields, setFields] = useState<CardField[]>([]);
+  if (!item && !heldCard && params.manual !== '1') {
+    return (
+      <Screen title="読み取り結果の確認" back="/scan/queue">
+        <EmptyState title="確認する名刺が見つかりません" body="すでに保存済みか、キューから削除された可能性があります。" action={<Button label="取込キューへ" onPress={() => router.replace('/scan/queue')} />} />
+      </Screen>
+    );
+  }
+  // Remount per card so the form state starts from that card's OCR result.
+  return <ReviewForm key={item?.id ?? heldCard?.id ?? 'manual'} item={item} heldCard={heldCard} />;
+}
+
+function ReviewForm({ item, heldCard }: { item?: ScanItem; heldCard?: BusinessCard }) {
+  const session = useVault();
+  const router = useRouter();
+  const desktop = useWindowDimensions().width >= DESKTOP_MIN_WIDTH;
+  const [fields, setFields] = useState<CardField[]>(() => {
+    const base = item ? initialFields(item) : heldCard ? heldCard.fields : [];
+    return FIELD_ORDER.map(({ key }) => base.find((f) => f.key === key) ?? { key, value: '', source: 'user' as const, verified: false });
+  });
   const [error, setError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const [showImage, setShowImage] = useState(true);
-
-  useEffect(() => {
-    const base = item ? initialFields(item) : heldCard ? heldCard.fields : [];
-    setFields(FIELD_ORDER.map(({ key }) => base.find((f) => f.key === key) ?? { key, value: '', source: 'user', verified: false }));
-    setError(null);
-  }, [item?.id, heldCard?.id]);
 
   const probe = useMemo(() => {
     const v = (k: CardFieldKey) => fields.find((f) => f.key === k)?.value.trim() ?? '';
@@ -53,15 +64,8 @@ export default function Review() {
     if (!probe.fullName && !probe.emails.length && !probe.phones.length) return [];
     const subjects = [...session.index.views.values()].map((v) => ({ id: v.contact.id, fullName: v.contact.fullName, fullNameKana: v.contact.fullNameKana, company: v.current?.organization?.name, emails: v.contact.emails, phones: v.contact.phones.map((p) => p.value) }));
     return findDuplicateCandidates(probe, subjects).slice(0, 5);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recompute when vault data changes
   }, [probe, session, session.snapshot]);
-
-  if (!item && !heldCard && params.manual !== '1') {
-    return (
-      <Screen title="読み取り結果の確認" back="/scan/queue">
-        <EmptyState title="確認する名刺が見つかりません" body="すでに保存済みか、キューから削除された可能性があります。" action={<Button label="取込キューへ" onPress={() => router.replace('/scan/queue')} />} />
-      </Screen>
-    );
-  }
 
   const setField = (key: CardFieldKey, patch: Partial<CardField>) => setFields((prev) => prev.map((f) => (f.key === key ? { ...f, ...patch } : f)));
   const unverified = fields.filter((f) => f.value.trim() && needsVerification(f)).length;

@@ -39,7 +39,7 @@ export interface EncryptedStore {
   getBlob(id: string): Promise<StoredBlob | undefined>;
   putBlob(blob: StoredBlob): Promise<void>;
   deleteBlob(id: string): Promise<void>;
-  listBlobs(): Promise<Array<Omit<StoredBlob, 'envelope'>>>;
+  listBlobs(): Promise<Omit<StoredBlob, 'envelope'>[]>;
   clearAll(): Promise<void>;
 }
 

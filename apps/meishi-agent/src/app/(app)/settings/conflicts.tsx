@@ -27,13 +27,15 @@ export default function Conflicts() {
   const desktop = useWindowDimensions().width >= DESKTOP_MIN_WIDTH;
   const conflicts = session.conflicts;
   const [remote, setRemote] = useState<Record<string, Entity | null>>({});
+  const snapshot = session.snapshot;
   useEffect(() => {
+    void snapshot;
     void (async () => {
       const out: Record<string, Entity | null> = {};
-      for (const c of conflicts) out[c.id] = c.conflict?.envelope ? await session.decryptEnvelope(c.id, c.conflict.envelope).catch(() => null) : null;
+      for (const c of session.conflicts) out[c.id] = c.conflict?.envelope ? await session.decryptEnvelope(c.id, c.conflict.envelope).catch(() => null) : null;
       setRemote(out);
     })();
-  }, [session.snapshot]);
+  }, [session, snapshot]);
 
   return (
     <Screen title="同期の競合" subtitle="どちらの端末の変更も失われていません。採用する内容を選んでください。" back="/settings/sync" testID="screen-conflicts">

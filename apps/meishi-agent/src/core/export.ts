@@ -9,8 +9,8 @@ export interface EncryptedBackup {
   format: 'meishi-backup/v1';
   createdAt: string;
   recoveryEnvelope: RecoveryEnvelope;
-  records: Array<{ id: string; localOnly: boolean; envelope: string }>;
-  blobs: Array<{ id: string; envelope: string }>;
+  records: { id: string; localOnly: boolean; envelope: string }[];
+  blobs: { id: string; envelope: string }[];
 }
 
 export async function createEncryptedBackup(session: VaultSession, recoveryEnvelope: RecoveryEnvelope, includeImages: boolean, now = new Date()): Promise<EncryptedBackup> {

@@ -11,11 +11,11 @@ export interface DemoPerson {
   department?: string;
   title?: string;
   email?: string;
-  phones?: Array<{ kind: 'office' | 'mobile' | 'fax'; value: string }>;
+  phones?: { kind: 'office' | 'mobile' | 'fax'; value: string }[];
   tags?: string[];
   status?: 'needs_review' | 'confirmed' | 'on_hold';
-  encounters?: Array<{ daysAgo: number; event?: string; place?: string; conversation?: string; nextAction?: string }>;
-  past?: Array<{ company: string; title?: string }>;
+  encounters?: { daysAgo: number; event?: string; place?: string; conversation?: string; nextAction?: string }[];
+  past?: { company: string; title?: string }[];
 }
 
 export const DEMO_PEOPLE: DemoPerson[] = [

@@ -1,7 +1,8 @@
 // S02 ロック解除: biometric (native) / passcode (web, optional) / recovery key. Nothing personal is
 // shown while locked; wrong attempts are delayed exponentially.
 import { Redirect, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useNow } from '../../ui/use-now';
 import { Platform, View } from 'react-native';
 import { UnlockThrottledError } from '../../core/controller';
 import { useApp, useAppState } from '../../ui/app-context';
@@ -13,14 +14,15 @@ export default function Unlock() {
   const state = useAppState();
   const router = useRouter();
   const [method, setMethod] = useState<'passcode' | 'key'>(state.hasPasscode ? 'passcode' : 'key');
+  const [passcodeKnown, setPasscodeKnown] = useState(state.hasPasscode);
+  if (passcodeKnown !== state.hasPasscode) {
+    // Adjust state when the passcode availability changes (render-time update, no effect needed).
+    setPasscodeKnown(state.hasPasscode);
+    setMethod(state.hasPasscode ? 'passcode' : 'key');
+  }
   const [secret, setSecret] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  useEffect(() => setMethod(state.hasPasscode ? 'passcode' : 'key'), [state.hasPasscode]);
+  const now = useNow(1000);
   if (state.phase === 'welcome') return <Redirect href="/welcome" />;
   const wait = Math.max(0, Math.ceil((state.unlockLockedUntil - now) / 1000));
 

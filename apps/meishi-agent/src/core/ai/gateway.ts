@@ -36,8 +36,8 @@ export interface ContactBrief {
 
 export type ToolResult =
   | { ok: true; tool: 'searchContacts'; items: ContactBrief[]; total: number }
-  | { ok: true; tool: 'getContactSummary'; items: Array<ContactBrief & { encounters: Array<{ id: string; date: string; event?: string; conversation?: string; nextAction?: string }> }> }
-  | { ok: true; tool: 'suggestFollowUps'; items: Array<FollowUpSuggestion & { brief: ContactBrief }> }
+  | { ok: true; tool: 'getContactSummary'; items: (ContactBrief & { encounters: { id: string; date: string; event?: string; conversation?: string; nextAction?: string }[] })[] }
+  | { ok: true; tool: 'suggestFollowUps'; items: (FollowUpSuggestion & { brief: ContactBrief })[] }
   | { ok: true; tool: 'findDuplicates'; items: DuplicatePair[] }
   | { ok: false; reason: string };
 

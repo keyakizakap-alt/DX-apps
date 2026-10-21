@@ -16,7 +16,7 @@ export default function Scan() {
   const router = useRouter();
   const desktop = useWindowDimensions().width >= DESKTOP_MIN_WIDTH;
   const [busy, setBusy] = useState(false);
-  const [messages, setMessages] = useState<Array<{ tone: 'ok' | 'warn' | 'danger'; text: string }>>([]);
+  const [messages, setMessages] = useState<{ tone: 'ok' | 'warn' | 'danger'; text: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const dropRef = useRef<unknown>(null);
   const inSession = activeItems(session).length;

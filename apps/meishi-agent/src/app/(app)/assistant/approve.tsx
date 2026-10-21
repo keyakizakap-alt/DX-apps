@@ -9,6 +9,7 @@ import { AI_FIELD_LABELS, type AiFieldKey, type DraftResult } from '../../../cor
 import { externalPreviewSlot, useApp, useAppState, useVault } from '../../../ui/app-context';
 import { Badge, Banner, Button, Card, KeyValue, Row, Screen, T, Toggle } from '../../../ui/components';
 import { color, space } from '../../../ui/theme';
+import { useNow } from '../../../ui/use-now';
 
 export default function Approve() {
   const { contact } = useLocalSearchParams<{ contact?: string }>();
@@ -22,6 +23,7 @@ export default function Approve() {
   const [error, setError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
   const view = contact ? session.index.views.get(contact) : undefined;
+  const now = useNow(30_000);
 
   if (!preview || !view || !state.aiServer?.destination) {
     return (
@@ -45,7 +47,7 @@ export default function Approve() {
     setDenied(true);
     router.replace({ pathname: '/assistant', params: { contact: view.contact.id } });
   };
-  const expiresIn = Math.max(0, Math.round((preview.createdAt + PREVIEW_TTL_MS - Date.now()) / 60000));
+  const expiresIn = Math.max(0, Math.round((preview.createdAt + PREVIEW_TTL_MS - now) / 60000));
 
   return (
     <Screen title="外部AIへの送信確認" subtitle="以下の内容を、この1回だけ外部AIに送信します" narrow testID="screen-approve">

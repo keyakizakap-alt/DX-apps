@@ -13,7 +13,7 @@ interface TesseractLine {
   confidence: number;
 }
 interface TesseractWorker {
-  recognize(image: Blob, options?: object, output?: object): Promise<{ data: { blocks: Array<{ paragraphs: Array<{ lines: TesseractLine[] }> }> | null; text: string } }>;
+  recognize(image: Blob, options?: object, output?: object): Promise<{ data: { blocks: { paragraphs: { lines: TesseractLine[] }[] }[] | null; text: string } }>;
   terminate(): Promise<unknown>;
 }
 interface TesseractGlobal {

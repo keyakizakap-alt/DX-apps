@@ -54,8 +54,8 @@ describe('cross-device E2EE sync', () => {
     await addContact(phone);
     await phone.engine.sync();
     const dump: string[] = [];
-    for (const { name } of server.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>) {
-      for (const row of server.db.prepare(`SELECT * FROM ${name}`).all() as Array<Record<string, unknown>>) {
+    for (const { name } of server.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]) {
+      for (const row of server.db.prepare(`SELECT * FROM ${name}`).all() as Record<string, unknown>[]) {
         for (const v of Object.values(row)) dump.push(v instanceof Uint8Array ? Buffer.from(v).toString('latin1') + Buffer.from(v).toString('utf8') : String(v));
       }
     }

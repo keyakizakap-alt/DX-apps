@@ -15,7 +15,7 @@ export interface ExternalPreview {
   request: ExternalDraftRequest;
   hash: string;
   json: string; // exactly what is transmitted (inside the request body)
-  fields: Array<{ key: AiFieldKey; label: string; value: string }>;
+  fields: { key: AiFieldKey; label: string; value: string }[];
   warnings: string[];
   createdAt: number;
 }

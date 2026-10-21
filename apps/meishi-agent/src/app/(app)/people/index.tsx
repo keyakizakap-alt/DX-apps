@@ -25,11 +25,22 @@ export default function People() {
   useEffect(() => {
     if (params.focus === '1') setTimeout(() => input.current?.focus(), 50);
   }, [params.focus]);
-  useEffect(() => setStatus(params.status), [params.status]);
+  const [statusParam, setStatusParam] = useState(params.status);
+  if (statusParam !== params.status) {
+    setStatusParam(params.status);
+    setStatus(params.status);
+  }
 
-  const filters: SearchFilters = { text: text || undefined, status, tag };
-  const hits = useMemo(() => searchContacts(session.index, filters), [session.snapshot, text, status, tag]);
-  const tags = useMemo(() => [...new Set(session.all('contact').flatMap((c) => c.tags))].sort(), [session.snapshot]);
+  const snapshot = session.snapshot; // changes whenever decrypted data changes
+  const hits = useMemo(() => {
+    void snapshot;
+    const filters: SearchFilters = { text: text || undefined, status, tag };
+    return searchContacts(session.index, filters);
+  }, [session, snapshot, text, status, tag]);
+  const tags = useMemo(() => {
+    void snapshot;
+    return [...new Set(session.all('contact').flatMap((c) => c.tags))].sort();
+  }, [session, snapshot]);
   const unattachedCards = session.all('card').filter((c) => !c.contactId);
   const active = Boolean(text || status || tag);
 

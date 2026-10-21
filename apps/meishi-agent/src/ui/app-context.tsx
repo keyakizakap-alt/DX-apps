@@ -35,30 +35,28 @@ export function useVault() {
 /** Decrypts an image blob for display; the object URL is revoked when the component unmounts. */
 export function useDecryptedImage(blobId: string | undefined): { uri?: string; error?: string; loading: boolean } {
   const app = useApp();
-  const [state, setState] = useState<{ uri?: string; error?: string; loading: boolean }>({ loading: Boolean(blobId) });
+  // Result is tagged with the blob it belongs to, so a stale result is never shown for a new blob.
+  const [state, setState] = useState<{ for?: string; uri?: string; error?: string }>({});
   useEffect(() => {
     let url: string | undefined;
     let cancelled = false;
-    if (!blobId) {
-      setState({ loading: false });
-      return;
-    }
-    setState({ loading: true });
+    if (!blobId) return;
     app.session
       .getImage(blobId, app.state.account ? (id) => app.api.getBlob(id) : undefined)
       .then((bytes) => {
         if (cancelled) return;
-        if (!bytes) return setState({ loading: false, error: '画像がこの端末にありません（同期待ちの可能性）' });
+        if (!bytes) return setState({ for: blobId, error: '画像がこの端末にありません（同期待ちの可能性）' });
         url = Platform.OS === 'web' ? URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' })) : `data:image/jpeg;base64,${toBase64(bytes)}`;
-        setState({ uri: url, loading: false });
+        setState({ for: blobId, uri: url });
       })
-      .catch(() => !cancelled && setState({ loading: false, error: '画像を復号できませんでした' }));
+      .catch(() => !cancelled && setState({ for: blobId, error: '画像を復号できませんでした' }));
     return () => {
       cancelled = true;
       if (url && Platform.OS === 'web' && url.startsWith('blob:')) URL.revokeObjectURL(url);
     };
   }, [blobId, app]);
-  return state;
+  if (!blobId) return { loading: false };
+  return state.for === blobId ? { uri: state.uri, error: state.error, loading: false } : { loading: true };
 }
 
 // In-memory hand-off between S11 and S12 (never persisted).

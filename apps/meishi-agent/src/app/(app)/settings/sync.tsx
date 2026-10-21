@@ -26,9 +26,18 @@ export default function SyncScreen() {
       setError(e instanceof SyncHttpError && e.code === 'offline' ? '端末一覧を取得できません（オフライン）' : e instanceof Error ? e.message : '取得できません');
     }
   };
+  const accountId = state.account?.accountId;
   useEffect(() => {
-    void loadDevices();
-  }, [state.account?.accountId]);
+    if (!accountId) return;
+    let cancelled = false;
+    app.api
+      .devices()
+      .then((r) => !cancelled && setDevices(r.devices))
+      .catch((e) => !cancelled && setError(e instanceof SyncHttpError && e.code === 'offline' ? '端末一覧を取得できません（オフライン）' : e instanceof Error ? e.message : '取得できません'));
+    return () => {
+      cancelled = true;
+    };
+  }, [app, accountId]);
 
   const errorHelp: Record<string, string> = {
     offline: 'ネットワークに接続できません。接続後に自動で再送します。',

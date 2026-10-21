@@ -6,7 +6,7 @@ import { computeDuplicatePairs } from '../../core/ai/gateway';
 import { loadDemoData } from '../../core/demo/fixtures';
 import { suggestFollowUps } from '../../core/domain/followup';
 import { activeItems } from '../../core/scan/queue';
-import { useApp, useAppState, useVault } from '../../ui/app-context';
+import { useAppState, useVault } from '../../ui/app-context';
 import { Badge, Banner, Button, Card, EmptyState, Row, Screen, Section, T } from '../../ui/components';
 import { cap99, syncLabel } from '../../ui/status';
 import { color, DESKTOP_MIN_WIDTH, MIN_TAP, space } from '../../ui/theme';
@@ -15,7 +15,6 @@ const DEMO_ENABLED = process.env.EXPO_PUBLIC_ENABLE_DEMO === '1';
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export default function Home() {
-  const app = useApp();
   const state = useAppState();
   const session = useVault();
   const router = useRouter();

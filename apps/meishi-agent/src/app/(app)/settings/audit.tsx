@@ -21,7 +21,7 @@ export default function Audit() {
   const [events, setEvents] = useState<AuditEvent[] | null>(null);
   useEffect(() => {
     void app.audit().then(setEvents);
-  }, [session.snapshot]);
+  }, [app, session.snapshot]);
   return (
     <Screen title="操作履歴" subtitle="日時・操作の種類・件数・結果だけを端末内に記録します（氏名や名刺の内容は記録しません）" back="/settings" testID="screen-audit">
       {events && events.length === 0 ? <EmptyState title="記録はまだありません" /> : null}
