@@ -5,6 +5,7 @@ import { AppState as RNAppState, Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppController } from '../core/controller';
 import { createPlatform } from '../platform';
+import { enableScreenPrivacy } from '../platform/privacy';
 import { installTrustedTypes, trustedScriptURL } from '../platform/web/trusted-types';
 import { AppProvider, useAppState } from '../ui/app-context';
 import { Banner, Loading, T } from '../ui/components';
@@ -36,15 +37,24 @@ export default function RootLayout() {
     }
   });
 
+  // Covers the screen whenever the app/tab is not in the foreground, so the OS task switcher or a
+  // screen share never shows card data, even when "lock when hidden" is turned off.
+  const [covered, setCovered] = useState(false);
+
   useEffect(() => {
     if (!controller) return;
+    void enableScreenPrivacy();
     void controller.boot();
     if (Platform.OS === 'web' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker.register(trustedScriptURL('/sw.js')).catch(() => undefined); // offline app shell only
     }
     // Lock when the app is hidden (setting), and treat any interaction as activity for auto-lock.
     if (Platform.OS === 'web') {
-      const onVis = () => controller.onVisibilityChange(document.visibilityState === 'hidden');
+      const onVis = () => {
+        const hidden = document.visibilityState === 'hidden';
+        setCovered(hidden);
+        controller.onVisibilityChange(hidden);
+      };
       const onActivity = () => controller.touch();
       document.addEventListener('visibilitychange', onVis);
       window.addEventListener('pointerdown', onActivity, { passive: true });
@@ -55,7 +65,10 @@ export default function RootLayout() {
         window.removeEventListener('keydown', onActivity);
       };
     }
-    const sub = RNAppState.addEventListener('change', (s) => controller.onVisibilityChange(s !== 'active'));
+    const sub = RNAppState.addEventListener('change', (s) => {
+      setCovered(s !== 'active');
+      controller.onVisibilityChange(s !== 'active');
+    });
     return () => sub.remove();
   }, [controller]);
 
@@ -76,6 +89,11 @@ export default function RootLayout() {
           <Boot>
             <Slot />
           </Boot>
+          {covered ? (
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: color.bg, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="画面を保護しています">
+              <T variant="heading">名刺管理</T>
+            </View>
+          ) : null}
         </View>
       </AppProvider>
     </SafeAreaProvider>

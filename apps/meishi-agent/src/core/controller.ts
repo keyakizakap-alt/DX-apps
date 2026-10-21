@@ -1,6 +1,7 @@
 // Application controller shared by every screen. Platform-neutral (no React / RN imports) so the
 // full lifecycle — create vault, lock/unlock, sync, import — is testable in Node.
-import { readAudit, recordAudit, type AuditEvent } from './audit';
+import { readAudit, recordAudit, verifyAudit, type AuditEvent } from './audit';
+import { passcodeProblem } from './passcode-policy';
 import { DecryptionError, type CryptoProvider , AeadKey } from './crypto/provider';
 import { RecoveryKeyFormatError, pickConfirmationGroups, recoveryKeyGroup } from './crypto/recovery-key';
 import { createVault, deriveVaultKeys, unlockWithPasscode, unlockWithRecoveryKey, wrapWithPasscode, type CreatedVault, type PasscodeEnvelope, type Pbkdf2, type RecoveryEnvelope } from './crypto/vault';
@@ -333,7 +334,8 @@ export class AppController {
 
   private async storePasscode(vmk: Uint8Array, vaultId: string, passcode: string) {
     if (!this.platform.passcode) return;
-    if (passcode.length < 8) throw new Error('パスコードは8文字以上にしてください');
+    const problem = passcodeProblem(passcode);
+    if (problem) throw new Error(problem);
     const env = await wrapWithPasscode(this.platform.provider, this.platform.passcode.pbkdf2, await this.platform.passcode.deviceKey(this.store), vmk, vaultId, passcode);
     await this.store.setMeta(META.passcode, env);
     this.set({ hasPasscode: true });
@@ -383,6 +385,7 @@ export class AppController {
     this.queue = null;
     void this.session.audit('vault.lock').catch(() => undefined);
     this.session.lock();
+    void this.platform.ocr.dispose().catch(() => undefined); // drop the OCR worker and any image it holds
     if (this.lockTimer) clearTimeout(this.lockTimer);
     if (this.syncTimer) clearTimeout(this.syncTimer);
     this.set({ phase: 'locked', ocrRunning: false });
@@ -508,6 +511,10 @@ export class AppController {
 
   audit(): Promise<AuditEvent[]> {
     return readAudit(this.store);
+  }
+
+  verifyAudit() {
+    return verifyAudit(this.store);
   }
 
   /** Deletes everything stored by this app on this device (not on the server or other devices). */

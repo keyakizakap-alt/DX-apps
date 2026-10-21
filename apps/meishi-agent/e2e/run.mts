@@ -138,6 +138,9 @@ const shot = (page: Page, name: string) => page.screenshot({ path: join(OUT, `${
 async function createVault(page: Page, url: string, passcode?: string): Promise<string> {
   await page.goto(url);
   await tid(page, 'start-new').click();
+  await tid(page, 'recovery-key-hidden').waitFor(); // shoulder-surfing: hidden until the user asks
+  assert.equal(await tid(page, 'recovery-key').count(), 0, '復旧キーが最初から表示されている');
+  await tid(page, 'reveal-recovery-key').click();
   const key = (await tid(page, 'recovery-key').innerText()).trim();
   const hint = await page.getByText(/復旧キーの \d+ 番目と \d+ 番目/).innerText();
   const [, g1, g2] = hint.match(/(\d+) 番目と (\d+) 番目/)!;
@@ -319,6 +322,7 @@ try {
     await tid(pc.page, 'screen-audit').waitFor();
     const text = await pc.page.locator('body').innerText();
     assert.ok(/ロック解除の失敗/.test(text) && /データ登録/.test(text), '監査ログに想定の操作がない');
+    assert.match(await tid(pc.page, 'audit-chain').innerText(), /異常なし/, '監査ログのハッシュチェーン検証が通らない');
     for (const p of PII) assert.ok(!text.includes(p), `監査画面に「${p}」`);
     await shot(pc.page, 'pc-07-audit');
   });

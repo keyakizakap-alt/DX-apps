@@ -1,6 +1,6 @@
+import { copySensitive } from '../../../ui/clipboard';
 // S12 外部AI送信承認: purpose, destination, number of people, per-field exclusion, the exact body,
 // provider terms note, and a one-time approval. Default action is cancel; no request before approval.
-import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Platform, View } from 'react-native';
@@ -131,7 +131,7 @@ export default function Approve() {
             <T key={c} variant="small" style={{ color: color.warn }}>※ {c}</T>
           ))}
           <T variant="small" style={{ color: color.muted }}>生成内容は人物情報として保存されません。事実関係を確認してから使ってください。</T>
-          <Button label="下書きをコピー" onPress={async () => { await Clipboard.setStringAsync(`${result.subject}\n\n${result.body}`); }} />
+          <Button label="下書きをコピー" onPress={async () => { await copySensitive(`${result.subject}\n\n${result.body}`); }} />
         </Card>
       ) : (
         <Row style={{ marginTop: space.lg }}>

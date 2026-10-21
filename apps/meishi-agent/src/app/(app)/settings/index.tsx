@@ -2,6 +2,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Platform, View } from 'react-native';
+import { passcodeProblem } from '../../../core/passcode-policy';
 import { useApp, useAppState } from '../../../ui/app-context';
 import { Badge, Banner, Button, Card, Chip, Field, Row, Screen, Section, T, Toggle } from '../../../ui/components';
 import { syncLabel } from '../../../ui/status';
@@ -37,9 +38,9 @@ export default function Settings() {
               </Row>
               <T variant="small">パスコードは復旧キーの代わりにこのブラウザで解除するためのものです。設定には復旧キーの入力が必要です。10回間違えると無効化されます。</T>
               <Field label="復旧キー" value={recoveryKey} onChangeText={setRecoveryKey} autoCapitalize="characters" testID="settings-recovery-key" />
-              <Field label="新しいパスコード（8文字以上）" value={passcode} onChangeText={setPasscode} secureTextEntry testID="settings-passcode" />
+              <Field label="新しいパスコード（10文字以上）" value={passcode} onChangeText={setPasscode} secureTextEntry testID="settings-passcode" error={passcode ? passcodeProblem(passcode) ?? undefined : undefined} />
               <Row>
-                <Button label="パスコードを設定" kind="secondary" compact disabled={recoveryKey.length < 20 || passcode.length < 8} onPress={async () => {
+                <Button label="パスコードを設定" kind="secondary" compact disabled={recoveryKey.length < 20 || passcodeProblem(passcode) !== null} onPress={async () => {
                   try {
                     app.lock();
                     await app.unlockWithRecoveryKey(recoveryKey, passcode);

@@ -197,7 +197,10 @@ describe('SEC-14 audit log contains no personal data', () => {
       expect(text.includes(p.fullName), `監査ログに氏名「${p.fullName}」`).toBe(false);
       if (p.email) expect(text.includes(p.email)).toBe(false);
     }
-    for (const e of events) expect(Object.keys(e).sort()).toEqual(['action', 'at', 'count', 'outcome']);
+    for (const e of events) {
+      expect(Object.keys(e).sort()).toEqual(['action', 'at', 'count', 'hash', 'outcome']);
+      expect(e.hash).toMatch(/^[0-9a-f]{64}$/); // tamper-evident chain value, not personal data
+    }
   });
 });
 

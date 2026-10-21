@@ -1,6 +1,6 @@
+import { copySensitive } from '../../../ui/clipboard';
 // S11 AIアシスタント: on-device rule-based search / follow-ups / drafts with sources. External AI is
 // a separate, explicitly labelled path that always goes through S12.
-import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -141,7 +141,7 @@ export default function Assistant() {
           ))}
           {copied ? <Banner tone="ok">コピーしました。メールソフトに貼り付けて、宛先と内容を確認してから送信してください。</Banner> : null}
           <Row>
-            <Button label="下書きをコピー" onPress={async () => { await Clipboard.setStringAsync(`${draft.subject}\n\n${draft.body}`); setCopied(true); }} testID="copy-draft" />
+            <Button label="下書きをコピー" onPress={async () => { await copySensitive(`${draft.subject}\n\n${draft.body}`); setCopied(true); }} testID="copy-draft" />
             <Button label="外部AIで文面を整える…" kind="secondary" disabled={!externalReady} onPress={openExternal} testID="external-ai" />
           </Row>
           {!externalReady ? (

@@ -1,5 +1,5 @@
 // S09 人物詳細 body. Shows the origin of each value (OCR / 手入力 / AI候補) and keeps past affiliations.
-import * as Clipboard from 'expo-clipboard';
+import { copySensitive } from './clipboard';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -26,7 +26,7 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
   const c = view.contact;
 
   const copy = async (value: string) => {
-    await Clipboard.setStringAsync(value);
+    await copySensitive(value);
     setCopied(value);
   };
   const addTag = async () => {
@@ -56,7 +56,7 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
       </Row>
 
       <Section title="連絡先">
-        {copied ? <Banner tone="warn">コピーしました。共有端末ではクリップボードに残る点に注意してください。</Banner> : null}
+        {copied ? <Banner tone="warn">コピーしました。60秒後にクリップボードから消去します。</Banner> : null}
         {c.emails.length === 0 && c.phones.length === 0 ? <T variant="muted">連絡先は未登録です。</T> : null}
         {c.emails.map((e) => (
           <ContactRow key={e} label="メール" value={e} onCopy={() => copy(e)} />
