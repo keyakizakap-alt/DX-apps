@@ -47,3 +47,8 @@ yarn-error.*
 !.env.example
 test-results/
 playwright-report/
+
+# copied by scripts/copy-vendor.mjs
+public/ocr/
+public/pdfjs/pdf.min.mjs
+public/pdfjs/pdf.worker.min.mjs

@@ -9,7 +9,7 @@ import { Entity, LOCAL_ONLY_TYPES, type EntityOf, type EntityType } from '../dom
 import { buildIndex, type EntityIndex } from '../domain/views';
 import type { EncryptedStore, StoredRecord } from './types';
 
-export type NewEntity<T extends EntityType> = Omit<EntityOf<T>, 'id' | 'createdAt' | 'updatedAt' | 'version'> & { id?: string };
+export type NewEntity<T extends EntityType> = Omit<EntityOf<T>, 'id' | 'type' | 'createdAt' | 'updatedAt' | 'version'> & { id?: string };
 
 export interface SessionDeps {
   provider: CryptoProvider;

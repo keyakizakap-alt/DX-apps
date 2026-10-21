@@ -135,6 +135,9 @@ export const ScanItem = z.object({
   frontBlobId: id,
   backBlobId: id.optional(),
   sourceName: shortText(200).optional(),
+  /** SHA-256 of the processed image, to warn about importing the same image twice. */
+  imageHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  ocrLines: z.array(z.object({ text: shortText(400), confidence: z.number().min(0).max(1).optional() })).max(200).optional(),
   attempts: z.number().int().min(0).max(10),
   error: shortText(300).optional(),
   cardId: id.optional(),
