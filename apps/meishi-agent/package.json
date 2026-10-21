@@ -1,7 +1,7 @@
 {
   "name": "meishi-agent",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",
     "@noble/hashes": "^2.4.0",
@@ -42,9 +42,21 @@
   },
   "scripts": {
     "start": "expo start",
+    "web": "node scripts/copy-vendor.mjs && expo start --web",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "node scripts/lint.mjs",
+    "test": "vitest run",
+    "build:web": "node scripts/build-web.mjs",
+    "server": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/main.mts",
+    "dev": "npm run build:web:demo && npm run server",
+    "test:e2e": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/run.mts",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build:web:demo && npm run test:e2e",
+    "build:web:demo": "node scripts/build-web.mjs --demo"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=22.18"
+  }
 }

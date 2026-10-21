@@ -38,7 +38,7 @@ export type ToolResult =
   | { ok: true; tool: 'searchContacts'; items: ContactBrief[]; total: number }
   | { ok: true; tool: 'getContactSummary'; items: Array<ContactBrief & { encounters: Array<{ id: string; date: string; event?: string; conversation?: string; nextAction?: string }> }> }
   | { ok: true; tool: 'suggestFollowUps'; items: Array<FollowUpSuggestion & { brief: ContactBrief }> }
-  | { ok: true; tool: 'findDuplicates'; items: Array<{ a: ContactBrief; b: ContactBrief; candidate: DuplicateCandidate }> }
+  | { ok: true; tool: 'findDuplicates'; items: DuplicatePair[] }
   | { ok: false; reason: string };
 
 const Filters = z
@@ -72,7 +72,10 @@ export function brief(view: ContactView, matched?: string[]): ContactBrief {
 }
 
 export class PolicyGateway {
-  constructor(private readonly session: VaultSession) {}
+  private readonly session: VaultSession;
+  constructor(session: VaultSession) {
+    this.session = session;
+  }
 
   async invoke(call: ToolCall): Promise<ToolResult> {
     const deny = async (reason: string): Promise<ToolResult> => {
@@ -106,28 +109,39 @@ export class PolicyGateway {
         });
         return { ok: true, tool, items };
       }
-      case 'findDuplicates': {
-        const dismissed = new Set(this.session.all('duplicateDecision').filter((d) => d.decision !== 'later').map((d) => d.pairKey));
-        const subjects = [...index.views.values()].map((v) => ({
-          id: v.contact.id,
-          fullName: v.contact.fullName,
-          fullNameKana: v.contact.fullNameKana,
-          company: v.current?.organization?.name,
-          emails: v.contact.emails,
-          phones: v.contact.phones.map((p) => p.value),
-        }));
-        const seen = new Set<string>();
-        const items: Array<{ a: ContactBrief; b: ContactBrief; candidate: DuplicateCandidate }> = [];
-        for (const s of subjects) {
-          for (const c of findDuplicateCandidates(s, subjects, dismissed, s.id)) {
-            const key = pairKey(s.id, c.subjectId);
-            if (seen.has(key)) continue;
-            seen.add(key);
-            items.push({ a: brief(index.views.get(s.id)!), b: brief(index.views.get(c.subjectId)!), candidate: c });
-          }
-        }
-        return { ok: true, tool, items: items.sort((x, y) => y.candidate.score - x.candidate.score).slice(0, LIMITS.maxResults) };
-      }
+      case 'findDuplicates':
+        return { ok: true, tool, items: computeDuplicatePairs(this.session).slice(0, LIMITS.maxResults) };
     }
   }
+}
+
+export interface DuplicatePair {
+  a: ContactBrief;
+  b: ContactBrief;
+  candidate: DuplicateCandidate;
+}
+
+/** All undecided duplicate candidate pairs, strongest first. Pure read; never merges. */
+export function computeDuplicatePairs(session: VaultSession): DuplicatePair[] {
+  const index = session.index;
+  const decided = new Set(session.all('duplicateDecision').filter((d) => d.decision !== 'later').map((d) => d.pairKey));
+  const subjects = [...index.views.values()].map((v) => ({
+    id: v.contact.id,
+    fullName: v.contact.fullName,
+    fullNameKana: v.contact.fullNameKana,
+    company: v.current?.organization?.name,
+    emails: v.contact.emails,
+    phones: v.contact.phones.map((p) => p.value),
+  }));
+  const seen = new Set<string>();
+  const items: DuplicatePair[] = [];
+  for (const s of subjects) {
+    for (const c of findDuplicateCandidates(s, subjects, decided, s.id)) {
+      const key = pairKey(s.id, c.subjectId);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ a: brief(index.views.get(s.id)!), b: brief(index.views.get(c.subjectId)!), candidate: c });
+    }
+  }
+  return items.sort((x, y) => y.candidate.score - x.candidate.score);
 }

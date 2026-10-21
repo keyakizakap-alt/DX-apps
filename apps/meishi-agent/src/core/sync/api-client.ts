@@ -15,7 +15,10 @@ export interface ApiClientOptions {
 const ErrorBody = z.object({ error: z.string(), message: z.string().optional() }).partial();
 
 export class ApiClient implements SyncTransport {
-  constructor(private readonly opts: ApiClientOptions) {}
+  private readonly opts: ApiClientOptions;
+  constructor(opts: ApiClientOptions) {
+    this.opts = opts;
+  }
 
   private async request(method: string, path: string, body?: unknown, raw?: Uint8Array): Promise<Response> {
     const headers: Record<string, string> = { 'x-meishi-client': this.opts.client };

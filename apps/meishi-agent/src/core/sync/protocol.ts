@@ -55,13 +55,15 @@ export interface SyncTransport {
   deleteBlob(id: string): Promise<void>;
 }
 
+export type SyncErrorCode = 'offline' | 'unauthorized' | 'forbidden' | 'quota' | 'rate_limited' | 'server' | 'invalid';
+
 export class SyncHttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: 'offline' | 'unauthorized' | 'forbidden' | 'quota' | 'rate_limited' | 'server' | 'invalid',
-    message: string,
-  ) {
+  readonly status: number;
+  readonly code: SyncErrorCode;
+  constructor(status: number, code: SyncErrorCode, message: string) {
     super(message);
     this.name = 'SyncHttpError';
+    this.status = status;
+    this.code = code;
   }
 }

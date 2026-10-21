@@ -34,12 +34,12 @@ const MAX_JSON_BYTES = 4 * 1024 * 1024;
 const COOKIE = 'mc_session';
 
 class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message = code,
-  ) {
+  readonly status: number;
+  readonly code: string;
+  constructor(status: number, code: string, message = code) {
     super(message);
+    this.status = status;
+    this.code = code;
   }
 }
 
@@ -344,7 +344,7 @@ export function createApp(cfg: AppConfig) {
   // ---- static web build -----------------------------------------------------------------------
 
   const MIME: Record<string, string> = {
-    '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json',
+    '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json',
     '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.wasm': 'application/wasm', '.gz': 'application/octet-stream', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json',
   };
 

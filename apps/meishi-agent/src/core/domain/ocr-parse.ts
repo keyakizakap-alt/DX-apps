@@ -28,6 +28,17 @@ function field(key: CardFieldKey, raw: string, value: string, ruleConfidence: nu
   return { key, ocrValue: raw.slice(0, 400), value: value.slice(0, 400), confidence, source: 'ocr', verified: false };
 }
 
+/** OCR engines often insert spaces inside e-mail addresses and URLs ("taro. yamada@example. com"). */
+export function tidyLine(raw: string): string {
+  let text = nfkc(raw).replace(/\s+/g, ' ').trim();
+  if (/@/.test(text) || /^(https?:|www\.)/i.test(text)) {
+    text = text.replace(/\s*([.@_\-/:])\s*/g, '$1');
+    const at = text.match(/[^\s]+@[^\s]+/);
+    if (at) text = text.replace(at[0], at[0].toLowerCase());
+  }
+  return text;
+}
+
 function stripLabel(text: string): string {
   return text.replace(/^(tel|phone|電話|携帯|mobile|mob|fax|ファクス|e-?mail|mail|メール|url|web|t|m|f|e)\s*[.:：]?\s*/i, '').trim();
 }
@@ -35,7 +46,7 @@ function stripLabel(text: string): string {
 export function parseCardText(lines: OcrLine[]): CardField[] {
   const fields: CardField[] = [];
   const used = new Set<number>();
-  const clean = lines.map((l) => ({ ...l, text: nfkc(l.text).replace(/\s+/g, ' ').trim() })).filter((l) => l.text.length > 0);
+  const clean = lines.map((l) => ({ ...l, text: tidyLine(l.text) })).filter((l) => l.text.length > 0);
 
   clean.forEach((line, i) => {
     const text = line.text;

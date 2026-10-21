@@ -15,8 +15,10 @@ export interface CapturedImage {
 }
 
 export class QueueFullError extends Error {
-  constructor(readonly accepted: number) {
+  readonly accepted: number;
+  constructor(accepted: number) {
     super(`1回の取り込みは最大${MAX_SESSION_ITEMS}枚です。${accepted}枚を追加しました。`);
+    this.accepted = accepted;
   }
 }
 

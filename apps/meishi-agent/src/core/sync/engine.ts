@@ -24,12 +24,17 @@ export interface SyncReport {
 export class SyncEngine {
   private running: Promise<SyncReport> | null = null;
 
-  constructor(
-    private readonly session: VaultSession,
-    private readonly transport: SyncTransport,
-    private readonly state: { load(): Promise<SyncState>; save(s: SyncState): Promise<void> },
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+  private readonly session: VaultSession;
+  private readonly transport: SyncTransport;
+  private readonly state: { load(): Promise<SyncState>; save(s: SyncState): Promise<void> };
+  private readonly now: () => Date;
+
+  constructor(session: VaultSession, transport: SyncTransport, state: { load(): Promise<SyncState>; save(s: SyncState): Promise<void> }, now: () => Date = () => new Date()) {
+    this.session = session;
+    this.transport = transport;
+    this.state = state;
+    this.now = now;
+  }
 
   /** Serialises concurrent sync requests. */
   sync(): Promise<SyncReport> {

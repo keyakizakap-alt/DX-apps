@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
-import { createAnthropicProvider } from './ai-provider.mts';
+import { createAnthropicProvider, type AiProvider } from './ai-provider.mts';
 import { createApp, type Mailer } from './app.mts';
 import { openDb } from './db.mts';
 
@@ -37,7 +37,17 @@ if (production && env.MEISHI_ALLOW_DEV_MAILER !== '1') throw new Error('No produ
 
 // External AI is off unless the operator provides a key AND confirms they reviewed the provider's
 // data-retention / training terms for their organisation.
-const ai = env.ANTHROPIC_API_KEY && env.MEISHI_AI_TERMS_CONFIRMED === '1' ? createAnthropicProvider(env.ANTHROPIC_API_KEY) : undefined;
+let ai: AiProvider | undefined = env.ANTHROPIC_API_KEY && env.MEISHI_AI_TERMS_CONFIRMED === '1' ? createAnthropicProvider(env.ANTHROPIC_API_KEY) : undefined;
+if (!ai && env.MEISHI_AI_FAKE === '1') {
+  // Test double for E2E: echoes which fields arrived; never contacts any external service.
+  if (production) throw new Error('MEISHI_AI_FAKE is not allowed in production');
+  ai = {
+    destination: 'fake:e2e-echo',
+    async generate(req) {
+      return { subject: '【テスト】お礼', body: `テスト用の生成結果です。受け取った項目: ${Object.keys(req.fields).sort().join(',')}`, caveats: ['これはE2E用の偽AIの出力です'] };
+    },
+  };
+}
 
 const origins = (env.MEISHI_ALLOWED_ORIGINS ?? `http://localhost:${port},http://127.0.0.1:${port}`).split(',').map((s) => s.trim()).filter(Boolean);
 const handler = createApp({

@@ -77,8 +77,10 @@ export interface AppState {
 }
 
 export class UnlockThrottledError extends Error {
-  constructor(readonly waitMs: number) {
+  readonly waitMs: number;
+  constructor(waitMs: number) {
     super(`試行回数が多すぎます。${Math.ceil(waitMs / 1000)}秒後に再試行してください。`);
+    this.waitMs = waitMs;
   }
 }
 
@@ -96,10 +98,12 @@ export class AppController {
   private challengeId: string | null = null;
   state: AppState;
 
-  constructor(
-    readonly platform: Platform,
-    private readonly clock: () => number = Date.now,
-  ) {
+  readonly platform: Platform;
+  private readonly clock: () => number;
+
+  constructor(platform: Platform, clock: () => number = Date.now) {
+    this.platform = platform;
+    this.clock = clock;
     this.api = new ApiClient({ ...platform.api, getToken: platform.tokenStore.get });
     this.state = {
       phase: 'booting',

@@ -29,6 +29,10 @@ describe('OCR field extraction (fictitious cards)', () => {
     expect(f.every((x) => x.source === 'ocr' && x.verified === false), 'OCR値が確認済みとして保存された。直し方: parseCardText は verified:false で返す').toBe(true);
     expect(f.find((x) => x.key === 'fullName')!.ocrValue).toBe('架空 花子');
   });
+  it('repairs spaces that OCR inserts inside e-mail addresses', () => {
+    const f = parseCardText([{ text: 'hanako. kakuu@exampLe. test', confidence: 0.71 }, { text: 'E-mail: taro .yamada @ dummy-bank. example' }]);
+    expect(f.filter((x) => x.key === 'email').map((x) => x.value)).toEqual(['hanako.kakuu@example.test', 'taro.yamada@dummy-bank.example']);
+  });
   it('low-confidence fields require verification', () => {
     const f = parseCardText(DEMO_OCR_TEXTS.horizontal!.map((text) => ({ text, confidence: 0.4 })));
     expect(f.every(needsVerification)).toBe(true);

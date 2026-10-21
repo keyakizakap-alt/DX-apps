@@ -1,4 +1,6 @@
 // Browser OCR with Tesseract.js (LSTM) and the bundled Japanese model (jpn, tessdata best_int).
+// Combining jpn+eng failed to initialise with tesseract.js 7.0.0 in testing, so jpn alone is used;
+// e-mail/URL spacing errors are repaired in core/domain/ocr-parse.ts.
 // Worker, WASM core and language data are served from this origin under /ocr/ (copied at build
 // time by scripts/copy-vendor.mjs), so images never leave the device and no CDN is contacted.
 // Limits: horizontal Japanese text; vertical (縦書き) cards need the jpn_vert model, not bundled.
@@ -15,7 +17,7 @@ interface TesseractWorker {
   terminate(): Promise<unknown>;
 }
 interface TesseractGlobal {
-  createWorker(langs: string, oem: number, options: Record<string, unknown>): Promise<TesseractWorker>;
+  createWorker(langs: string | string[], oem: number, options: Record<string, unknown>): Promise<TesseractWorker>;
 }
 
 export function createTesseractOcr(base = '/ocr'): OcrEngine {
