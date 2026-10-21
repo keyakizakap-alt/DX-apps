@@ -10,8 +10,8 @@
 |---|---|
 | ✅ 実装し自動試験で確認 | 暗号コア（AES-256-GCM/HKDF、既知ベクトル）、保管庫・復旧キー・Webパスコード、IndexedDB暗号化ストア、S00〜S15 全画面（Web）、画像/PDF取込・50枚キュー・中断再開、端末内日本語OCR（Web/Tesseract）、レビュー・重複候補・明示的統合、人物/出会い/タグ/フォロー、ローカルAI（検索・フォロー・下書き）、外部AI同意フロー（偽AIで検証）、E2EE同期（2端末・競合・削除伝播・オフライン・改ざん/巻き戻し拒否）、所有者認可、監査ログ、CSV/暗号化バックアップ/削除（再認証）、CSP・Service Worker（オフライン起動） |
 | ⚠️ 実装済み・未検証 | iOS/Android ネイティブ: SQLCipherストア、expo-crypto暗号、SecureStore鍵保管、Face ID解除、カメラ撮影・一時ファイル削除（型検査のみ、ビルド・実機未実施） |
-| ⚠️ 実装済み・実環境未検証 | 外部AI（Claude API `claude-opus-5-5`）の実通信（APIキー未提供のため偽AIで代替）、本番メール送信（開発用メーラーのみ） |
-| ❌ 未実装 | ネイティブ版 ML Kit 日本語OCR（手入力にフォールバック）、iOSアプリスイッチャーの画面保護、既存端末からのQR承認による端末追加、鍵ローテーションの再暗号化、ネイティブでのファイル書き出し、名刺の表裏自動ペアリング・四隅検出 |
+| ⚠️ 実装済み・実環境未検証 | 外部AI（既定: Groq無料プラン `openai/gpt-oss-20b`、予備: Claude Haiku 5.5）の実通信（APIキー未提供のため偽AIで代替）、本番メール送信（開発用メーラーのみ）、HTTPS環境での `__Host-` Cookie |
+| ❌ 未実装 | ネイティブ版 ML Kit 日本語OCR（手入力にフォールバック）、既存端末からのQR承認による端末追加、鍵ローテーションの再暗号化、ネイティブでのファイル書き出し、名刺の表裏自動ペアリング・四隅検出 |
 
 ## 実行コマンドと結果（2026-10-21）
 
@@ -20,7 +20,7 @@
 | `npm run audit` | `audit gate: OK`（許可済みビルド専用: braces / node-forge / uuid。pdf.js 6.4.299 へ更新済み） |
 | `npm run typecheck` | 成功（エラー0、`strict` + `noUncheckedIndexedAccess` + `erasableSyntaxOnly`） |
 | `npm run lint` | 成功（エラー0・警告0） |
-| `npm test`（Vitest） | **12ファイル / 95件 すべて成功** |
+| `npm test`（Vitest） | **14ファイル / 116件 すべて成功**（強化後） |
 | `npm run build:web:demo` | 成功（`dist/index.html`、単一バンドル 1.9MB、OCR資材 約8MB、pdf.js） |
 | `npm run test:e2e` | **20/20 成功**（下記） |
 | リポジトリ直下 `npm test` | **95件成功・失敗0**（既存 ANGLE Review の試験＋仕様書チェック。事前に `npm ci` が必要だった） |
@@ -37,9 +37,11 @@
 | `tests/integration/scan-review.test.ts` | 9 | 50枚上限・重複画像、中断再開・失敗行のみ再試行、50枚完走、転職の履歴保持、CSV/バックアップ |
 | `tests/integration/controller.test.ts` | 6 | 確認前は使えない、ロック・誤キー遅延、パスコード、サインイン同期・2台目復元、外部AI既定OFF、端末消去 |
 | `tests/integration/server-boot.test.ts` | 2 | Node型ストリップでの起動・CSP、本番で秘密未設定なら起動拒否 |
-| `tests/security/ai-boundaries.test.ts` | 14 | SEC-09/10/11/14、ローカル検索/フォロー根拠/下書き、禁止ツール全拒否 |
-| `tests/security/server-auth.test.ts` | 10 | 未認証拒否、CSRF、アカウント列挙防止、OTPロック/期限、HttpOnly Cookie、端末失効、再認証付き削除、CSP、非暗号Blob拒否、容量上限 |
-| `tests/security/repo-hygiene.test.ts` | 5 | 秘密情報・復旧キー・.env の非混入、固定nonceの使用箇所、console出力なし、CDN参照なし |
+| `tests/security/ai-boundaries.test.ts` | 16 | SEC-09/10/11/14、ローカル検索/フォロー根拠/下書き、禁止ツール全拒否 |
+| `tests/security/server-auth.test.ts` | 17 | 未認証拒否、CSRF、アカウント列挙防止、OTPロック/期限、HttpOnly Cookie、端末失効、再認証付き削除、CSP、非暗号Blob拒否、容量上限 |
+| `tests/security/repo-hygiene.test.ts` | 6 | 秘密情報・復旧キー・.env の非混入、固定nonceの使用箇所、console出力なし、CDN参照なし、Trusted Typesの許可URL |
+| `tests/security/ai-provider.test.ts` | 3 | 規約/ZDR未確認なら無効、Groqへの送信内容（無料モデル・strictスキーマ）、429/拒否/不正出力 |
+| `tests/security/client-hardening.test.ts` | 8 | パスコード規則、監査ログの改ざん検知（編集・削除）、暗号文/復旧キー/base64/OCRのランダム入力試験、用途の取り違え |
 
 ### ブラウザE2E（20件, `e2e/run.mts`, 実サーバー＋Webビルド, Chromium）
 PC 1280px: 作成・確認・DEMO架空データ / 検索・2ペイン・`/`ショートカット / 出会いメモ（離脱確認）・タグ / ローカルAI・外部AI既定OFF / 重複候補（自動統合なし）/ ロック・再読込で鍵や平文が残らない・誤キー遅延 / 設定・監査ログにPIIなし / CSV再認証・暗号化バックアップにPIIなし。
@@ -73,6 +75,30 @@ Androidサイズ 412px: 作成・下部タブ・横スクロールなし。ア�
 ### Phase 5（品質・配布）
 - ESLint（Expo推奨＋eval/innerHTML/localStorage禁止）、依存監査ゲート、CI（`.github/workflows/meishi-agent.yml`: 監査→型→lint→試験→ビルド→日本語フォント導入→Chromium→E2E→成果物保存）。※ `actions/upload-artifact@v7` は非公式情報源（依存更新PR）で最新と確認、公式リリースページは未確認。
 - **pdf.js の高深刻度脆弱性（GHSA-hq66-cqwq-w95j）を監査で検出し 6.4.299 へ更新**。API変更（`PDFDocumentProxy.destroy` 廃止）もE2Eで検出し修正。
+
+### 追加ラウンド（2026-10-21）: セキュリティ強化と無料AI
+依頼: 「セキュリティの構築は念入りに」「AIモデルはできる限り安く、無料で使えるもの」。
+
+- **AI**:
+  - 公式規約を確認し、外部AIの既定を **Groq 無料プラン（`openai/gpt-oss-20b`）** に変更した。契約で学習利用が禁止されており、ZDRを設定できる。
+  - Gemini 無料枠は、規約で個人情報の送信が禁止されているため不採用。予備は有料で最安の Claude Haiku 5.5。
+  - **氏名・会社名・部署を伏せ字にして送信し、端末内で戻す処理を既定ON**にした。E2Eで、送信本文と通信に実名が無いことを確認。（ADR-005）
+- **サーバー**:
+  - Host許可リスト、`__Host-` Cookie、無操作14日での失効、OTPの1日上限、IP全体のレート制限を追加。
+  - タイムアウト、許可メソッド限定、ドットファイル拒否を追加。
+  - Trusted Types、COOP/COEP、Permissions-Policy の拡張を追加。
+- **端末**:
+  - パスコード規則（10文字以上ほか）、復旧キーの伏せ表示、60秒で消えるクリップボードを追加。
+  - 非表示時の画面カバー、ネイティブの画面キャプチャ防止とiOSアプリ切替画面のぼかしを追加。
+  - ロック時にOCRワーカーを破棄、監査ログをハッシュチェーン化、ランダム入力試験を追加。
+- **試験で見つけて直した問題**:
+  - Trusted Types を有効にすると、次の3つが止まった:
+    1. Zod の `new Function` による高速化（`jitless` で無効化）
+    2. 自前のスクリプト読み込み（許可URLのみの専用ポリシーで対応）
+    3. Tesseract のワーカーURL（同じ許可リストの `default` ポリシーで対応。ワーカー自身の応答には Trusted Types を課さない）
+  - 監査ログの項目追加に合わせて SEC-14 の試験を更新した。
+- **結果**: Vitest 116件、E2E 20/20（Trusted Types・COEP有効のまま、CSP違反0件）、lint 0件、監査ゲート OK。
+- 脅威分析を [THREAT_MODEL.md](THREAT_MODEL.md)（STRIDE・残余リスク8項目）として追加した。
 
 ## 画面ID ↔ ルート
 | ID | ルート | ID | ルート |

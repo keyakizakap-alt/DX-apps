@@ -8,7 +8,7 @@ Claude Code のセッションでは、外部サービスのアカウント作�
 | 2 | **メール送信サービスの契約と送信元ドメイン認証** | 本番のOTPメール送信。現在は開発用（コンソール出力）のみで、本番起動は拒否される | 送信サービスを選定し `server/main.mts` の `Mailer` を実装・差し替え（APIキーはホスティングの秘密設定へ） |
 | 3 | **`MEISHI_SERVER_SECRET` の生成と保管** | OTP/メールHMACの鍵 | 32文字以上の乱数をホスティングの秘密設定に登録（Gitに入れない） |
 | 4 | **サーバーDBのバックアップ・監視** | 自前サーバー採用のため（ADR-004） | SQLiteファイルの定期バックアップ（暗号文のみだが可用性のため）、ディスク容量監視 |
-| 5 | （任意）**外部AIの有効化** | Anthropic APIキーと、組織としてのデータ保持・学習利用条件の確認が必要 | 条件確認後に `ANTHROPIC_API_KEY` と `MEISHI_AI_TERMS_CONFIRMED=1` を設定。利用料金が発生 |
+| 5 | （任意）**外部AIの有効化（無料）** | Groqのアカウント作成・APIキー発行・Zero Data Retentionの有効化は本人の操作が必要 | GroqCloudで無料プランに登録 → Data ControlsでZDRを有効化 → サービス契約を確認 → `GROQ_API_KEY`、`MEISHI_GROQ_ZDR_CONFIRMED=1`、`MEISHI_AI_TERMS_CONFIRMED=1` を設定（料金なし。無料枠の上限あり）。有料のClaude Haiku 5.5に切り替える場合は `MEISHI_AI_PROVIDER=anthropic` と `ANTHROPIC_API_KEY` |
 | 6 | **Apple Developer Program 登録・EAS ログイン・署名** | iPhoneネイティブ版（SQLCipher・Keychain・Face ID・カメラ）の開発ビルド | `npx eas-cli@latest login` → `npx eas-cli@latest build --platform ios --profile development` → 実機にインストール（README参照） |
 | 7 | **Android 開発ビルド** | Androidネイティブ版の検証 | `npx eas-cli@latest build --platform android --profile development`（またはAndroid Studioで `npx expo run:android`） |
 | 8 | **ML Kit 日本語OCRのネイティブ統合と実機検証** | Expo公式プラグインがなく、開発ビルドと実機がないと検証できない（ADR-006） | 候補ライブラリを評価→Config Plugin追加→ `OcrEngine` 実装（`src/core/scan/ocr.ts` のインターフェース）→実機で架空名刺50枚を計測 |
