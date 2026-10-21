@@ -21,7 +21,7 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const files = walk(ROOT).filter((f) => !f.endsWith('package-lock.json') && !f.includes('/public/pdfjs/pdf.'));
 
-const SECRET_PATTERNS: Array<[string, RegExp]> = [
+const SECRET_PATTERNS: [string, RegExp][] = [
   ['Anthropic API key', /sk-ant-[A-Za-z0-9_-]{20,}/],
   ['OpenAI-style key', /\bsk-[A-Za-z0-9]{32,}\b/],
   ['AWS access key', /\bAKIA[0-9A-Z]{16}\b/],

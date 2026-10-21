@@ -74,3 +74,22 @@ describe('auth', () => {
     await expect(a.api.putBlob('b_' + '1'.repeat(24), new TextEncoder().encode('plain jpeg bytes......................'))).rejects.toMatchObject({ status: 400 });
   });
 });
+
+describe('quotas', () => {
+  it('rejects pushes and blobs beyond the per-account quota with 413 "quota" and keeps others unaffected', async () => {
+    await server.close();
+    server = await startTestServer({ quota: { maxObjects: 2, maxBlobBytes: 100 } });
+    const a = await signIn(server, 'quota@example.test', 'pc');
+    const id = (n: number) => `c_${String(n).padStart(24, '0')}`;
+    const env = Buffer.from(new Uint8Array(40)).toString('base64');
+    await a.api.push({ deviceId: a.deviceId, changes: [{ objectId: id(1), baseRevision: null, deleted: false, envelope: env }, { objectId: id(2), baseRevision: null, deleted: false, envelope: env }] });
+    await expect(a.api.push({ deviceId: a.deviceId, changes: [{ objectId: id(3), baseRevision: null, deleted: false, envelope: env }] })).rejects.toMatchObject({ status: 413, code: 'quota' });
+    // Updating an existing object is still allowed at the limit.
+    await a.api.push({ deviceId: a.deviceId, changes: [{ objectId: id(1), baseRevision: 1, deleted: false, envelope: env }] });
+    const blob = new Uint8Array(80);
+    blob[0] = 1;
+    blob[1] = 2;
+    await a.api.putBlob(`b_${'1'.repeat(24)}`, blob);
+    await expect(a.api.putBlob(`b_${'2'.repeat(24)}`, blob)).rejects.toMatchObject({ status: 413 });
+  });
+});

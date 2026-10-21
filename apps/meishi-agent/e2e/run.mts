@@ -115,8 +115,9 @@ async function newContext(browser: Browser, kind: 'pc' | 'iphone' | 'android'): 
   openPages.push({ kind, page });
   page.on('console', (m) => {
     const text = m.text();
-    // Tesseract prints benign "Parameter not found" lines for legacy-engine settings in LSTM mode.
-    if (m.type() === 'error' && !/Failed to load resource: the server responded with a status of (401|404)|Parameter not found/.test(text)) consoleProblems.push(`[${kind}] ${text}`);
+    // Expected: 401/404 API answers, fetch failures while a scenario is deliberately offline, and
+    // Tesseract's benign "Parameter not found" lines for legacy-engine settings in LSTM mode.
+    if (m.type() === 'error' && !/Failed to load resource: the server responded with a status of (401|404)|Failed to load resource: net::ERR_INTERNET_DISCONNECTED|Parameter not found/.test(text)) consoleProblems.push(`[${kind}] ${text}`);
   });
   page.on('pageerror', (e) => consoleProblems.push(`[${kind}] pageerror: ${e.message}`));
   return { ctx, page };
@@ -481,6 +482,24 @@ try {
     await tid(laptop.page, 'people-search').fill('オフライン編集');
     await laptop.page.waitForTimeout(200);
     assert.equal(await tid(laptop.page, 'people-row').count(), 1, 'オフライン編集がPCに届いていない');
+  });
+
+  await scenario('オフライン再読み込み: Service Workerでアプリが開き、端末内データを閲覧できる', async () => {
+    const swReady = await phone.page.evaluate(async () => Boolean(await navigator.serviceWorker?.getRegistration()));
+    assert.ok(swReady, 'Service Worker が登録されていない');
+    await phone.ctx.setOffline(true);
+    try {
+      await phone.page.reload();
+      await tid(phone.page, 'screen-unlock').waitFor({ timeout: 15000 });
+      await tid(phone.page, 'unlock-secret').fill('phone-passcode-2026');
+      await tid(phone.page, 'unlock-submit').click();
+      await tid(phone.page, 'screen-home').waitFor({ timeout: 20000 });
+      await tid(phone.page, 'tab-people').click();
+      await phone.page.getByText('架空 花子').first().waitFor();
+      await shot(phone.page, 'iphone-08-offline-reload');
+    } finally {
+      await phone.ctx.setOffline(false);
+    }
   });
 
   await scenario('競合: 両端末で同じ人物を編集 → 競合表示 → 両方残す（SEC-16）', async () => {

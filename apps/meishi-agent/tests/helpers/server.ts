@@ -12,7 +12,7 @@ export interface TestServer {
   close(): Promise<void>;
 }
 
-export async function startTestServer(opts: { ai?: AiProvider; now?: () => number } = {}): Promise<TestServer> {
+export async function startTestServer(opts: { ai?: AiProvider; now?: () => number; quota?: { maxObjects?: number; maxBlobBytes?: number } } = {}): Promise<TestServer> {
   const otps = new Map<string, string>();
   const logs: string[] = [];
   const db = openDb(':memory:');
@@ -25,6 +25,7 @@ export async function startTestServer(opts: { ai?: AiProvider; now?: () => numbe
     secureCookies: false,
     allowedOrigins: ['http://localhost'],
     now: opts.now,
+    quota: opts.quota,
     log: (line) => logs.push(JSON.stringify(line)),
   });
   server = createServer((req, res) => void handler(req, res));

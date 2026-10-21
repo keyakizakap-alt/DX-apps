@@ -42,7 +42,7 @@ export default function SyncScreen() {
   const errorHelp: Record<string, string> = {
     offline: 'ネットワークに接続できません。接続後に自動で再送します。',
     auth_expired: 'サインインの有効期限が切れました。再度サインインしてください（端末内のデータはそのままです）。',
-    error: 'サーバーでエラーが発生しました。時間をおいて再試行してください。',
+    error: 'サーバーでエラーが発生しました。時間をおいて再試行してください。容量の上限に達した場合は、不要な名刺画像を削除するか運営者に相談してください。',
   };
 
   return (

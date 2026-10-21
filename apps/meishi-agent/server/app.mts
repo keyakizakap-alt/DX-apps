@@ -25,6 +25,8 @@ export interface AppConfig {
   allowedOrigins: string[]; // exact origins allowed to call the API with cookies
   now?: () => number;
   log?: (line: Record<string, unknown>) => void;
+  /** Per-account limits (ciphertext). Defaults: 100,000 objects, 1 GiB of encrypted images. */
+  quota?: { maxObjects?: number; maxBlobBytes?: number };
 }
 
 const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
@@ -54,6 +56,8 @@ export function createApp(cfg: AppConfig) {
   const sha = (v: string) => createHash('sha256').update(v).digest('hex');
   const hexId = (prefix: string) => `${prefix}_${randomBytes(12).toString('hex')}`;
   const buckets = new Map<string, { tokens: number; at: number }>();
+  const maxObjects = cfg.quota?.maxObjects ?? 100_000;
+  const maxBlobBytes = cfg.quota?.maxBlobBytes ?? 1024 * 1024 * 1024;
 
   function rateLimit(key: string, perMinute: number) {
     const t = now();
@@ -238,6 +242,9 @@ export function createApp(cfg: AppConfig) {
     const body = await json(ctx, PushRequest);
     if (body.deviceId !== auth.deviceId) throw new HttpError(403, 'device_mismatch');
     const ts = new Date(now()).toISOString();
+    const newIds = body.changes.filter((c) => !db.prepare('SELECT 1 FROM objects WHERE account_id = ? AND object_id = ?').get(auth.accountId, c.objectId)).length;
+    const { n } = db.prepare('SELECT COUNT(*) AS n FROM objects WHERE account_id = ?').get(auth.accountId) as { n: number };
+    if (n + newIds > maxObjects) throw new HttpError(413, 'quota', '同期サーバーの保存容量（件数）の上限に達しました。端末内の変更は保存されています。');
     const results = tx(db, () =>
       body.changes.map((c) => {
         const cur = db.prepare('SELECT revision, deleted, envelope, seq FROM objects WHERE account_id = ? AND object_id = ?').get(auth.accountId, c.objectId) as
@@ -277,6 +284,8 @@ export function createApp(cfg: AppConfig) {
     if (ctx.req.headers['content-type'] !== 'application/octet-stream') throw new HttpError(415, 'binary_required');
     const data = await readBody(ctx.req, MAX_BLOB_BYTES);
     if (data.length < 34 || data[0] !== 1 || data[1] !== 2) throw new HttpError(400, 'not_an_encrypted_blob'); // envelope v1, purpose=blob
+    const { used } = db.prepare('SELECT COALESCE(SUM(size), 0) AS used FROM blobs WHERE account_id = ?').get(auth.accountId) as { used: number };
+    if (used + data.length > maxBlobBytes) throw new HttpError(413, 'quota', '同期サーバーの保存容量（画像）の上限に達しました。端末内の画像は保存されています。');
     db.prepare('INSERT OR IGNORE INTO blobs (account_id, blob_id, data, size, created_at) VALUES (?, ?, ?, ?, ?)').run(auth.accountId, m[1]!, data, data.length, new Date(now()).toISOString());
     send(ctx.res, 200, { ok: true });
   });

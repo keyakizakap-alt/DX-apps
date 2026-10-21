@@ -1,6 +1,7 @@
 // iOS/Android capture via expo-image-picker (camera or library), resized/re-encoded on device
 // with expo-image-manipulator (drops EXIF). NOT verified on a device in this environment.
 import * as ImagePicker from 'expo-image-picker';
+import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { fromBase64 } from '../core/crypto/bytes';
 
@@ -20,9 +21,21 @@ export async function pickImages(source: 'camera' | 'files' | File[]): Promise<{
       const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.85, base64: true });
       if (!saved.base64) throw new Error('no data');
       images.push({ jpeg: fromBase64(saved.base64), sourceName: asset.fileName ?? undefined });
+      deleteTemp(saved.uri);
     } catch {
       errors.push('画像を処理できませんでした');
+    } finally {
+      // The picker/manipulator leave plaintext copies in the app cache; remove them once encrypted.
+      if (source === 'camera') deleteTemp(asset.uri);
     }
   }
   return { images, errors };
+}
+
+function deleteTemp(uri: string | undefined) {
+  try {
+    if (uri?.startsWith('file://')) new File(uri).delete();
+  } catch {
+    // best effort; verified only by type declarations (device test pending)
+  }
 }

@@ -11,6 +11,7 @@
     "expo-clipboard": "~58.0.3",
     "expo-constants": "~58.0.12",
     "expo-crypto": "~58.0.7",
+    "expo-dev-client": "~58.0.14",
     "expo-document-picker": "~58.0.4",
     "expo-file-system": "~58.0.10",
     "expo-image-manipulator": "~58.0.15",
@@ -54,8 +55,9 @@
     "server": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/main.mts",
     "dev": "npm run build:web:demo && npm run server",
     "test:e2e": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/run.mts",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build:web:demo && npm run test:e2e",
-    "build:web:demo": "node scripts/build-web.mjs --demo"
+    "check": "npm run audit && npm run typecheck && npm run lint && npm test && npm run build:web:demo && npm run test:e2e",
+    "build:web:demo": "node scripts/build-web.mjs --demo",
+    "audit": "node scripts/audit-runtime.mjs"
   },
   "private": true,
   "engines": {

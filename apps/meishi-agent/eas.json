@@ -1,0 +1,12 @@
+{
+  "cli": { "version": ">= 25.0.0", "appVersionSource": "local" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_SYNC_URL": "" }
+    },
+    "preview": { "distribution": "internal" },
+    "production": {}
+  }
+}
