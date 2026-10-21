@@ -1,4 +1,5 @@
 // Domain entities. Every entity is persisted as its own encrypted record (one SyncObject each).
+import './../zod-config';
 import { z } from 'zod';
 
 const id = z.string().regex(/^[a-z]{1,4}_[0-9a-f]{24}$/, 'invalid id');

@@ -66,3 +66,12 @@ describe('repository hygiene', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('Trusted Types script URL allowlist', () => {
+  it('accepts only the self-hosted engine files on this origin', async () => {
+    const { isAllowedScriptURL } = await import('@/platform/web/trusted-types');
+    const o = 'https://meishi.example.invalid';
+    for (const ok of ['/ocr/worker.min.js', '/ocr/tesseract.min.js', '/pdfjs/pdf.worker.min.mjs', '/pdfjs/loader.mjs', '/sw.js', `${o}/ocr/worker.min.js`]) expect(isAllowedScriptURL(ok, o), ok).toBe(true);
+    for (const bad of ['https://evil.example/ocr/worker.min.js', '/ocr/../evil.js', '/ocr/worker.min.js?x=1', '/evil.js', 'data:text/javascript,alert(1)', 'blob:https://meishi.example.invalid/abc', 'javascript:alert(1)', '//evil.example/sw.js']) expect(isAllowedScriptURL(bad, o), bad).toBe(false);
+  });
+});

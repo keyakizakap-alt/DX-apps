@@ -23,17 +23,20 @@ export interface AppConfig {
   staticDir?: string;
   secureCookies: boolean;
   allowedOrigins: string[]; // exact origins allowed to call the API with cookies
+  /** Accepted Host headers (DNS-rebinding defence). Omit only in tests. */
+  allowedHosts?: string[];
   now?: () => number;
   log?: (line: Record<string, unknown>) => void;
   /** Per-account limits (ciphertext). Defaults: 100,000 objects, 1 GiB of encrypted images. */
   quota?: { maxObjects?: number; maxBlobBytes?: number };
 }
 
-const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
+const SESSION_TTL_MS = 30 * 24 * 3600 * 1000; // absolute lifetime
+const SESSION_IDLE_MS = 14 * 24 * 3600 * 1000; // expires after 14 days without use
+const OTP_DAILY_CAP = 10; // codes per e-mail address per 24h
 const OTP_TTL_MS = 10 * 60 * 1000;
 const RECENT_AUTH_MS = 10 * 60 * 1000;
 const MAX_JSON_BYTES = 4 * 1024 * 1024;
-const COOKIE = 'mc_session';
 
 class HttpError extends Error {
   readonly status: number;
@@ -58,6 +61,8 @@ export function createApp(cfg: AppConfig) {
   const buckets = new Map<string, { tokens: number; at: number }>();
   const maxObjects = cfg.quota?.maxObjects ?? 100_000;
   const maxBlobBytes = cfg.quota?.maxBlobBytes ?? 1024 * 1024 * 1024;
+  // Over HTTPS the __Host- prefix pins the cookie to this exact host (no Domain, Path=/, Secure).
+  const COOKIE = cfg.secureCookies ? '__Host-mc_session' : 'mc_session';
 
   function rateLimit(key: string, perMinute: number) {
     const t = now();
@@ -104,7 +109,7 @@ export function createApp(cfg: AppConfig) {
   }
 
   function cookieHeader(token: string | null) {
-    const attrs = [`${COOKIE}=${token ?? ''}`, 'Path=/api', 'HttpOnly', 'SameSite=Strict', token ? `Max-Age=${SESSION_TTL_MS / 1000}` : 'Max-Age=0'];
+    const attrs = [`${COOKIE}=${token ?? ''}`, cfg.secureCookies ? 'Path=/' : 'Path=/api', 'HttpOnly', 'SameSite=Strict', token ? `Max-Age=${SESSION_TTL_MS / 1000}` : 'Max-Age=0'];
     if (cfg.secureCookies) attrs.push('Secure');
     return attrs.join('; ');
   }
@@ -127,11 +132,13 @@ export function createApp(cfg: AppConfig) {
     if (!token) throw new HttpError(401, 'unauthorized', 'サインインが必要です');
     const row = db
       .prepare(
-        `SELECT s.account_id, s.device_id, s.created_at, s.expires_at, s.revoked, d.revoked AS device_revoked
+        `SELECT s.account_id, s.device_id, s.created_at, s.expires_at, s.revoked, s.last_used_at, d.revoked AS device_revoked
          FROM sessions s JOIN devices d ON d.id = s.device_id WHERE s.token_hash = ?`,
       )
-      .get(sha(token)) as { account_id: string; device_id: string; created_at: number; expires_at: number; revoked: number; device_revoked: number } | undefined;
-    if (!row || row.revoked || row.device_revoked || row.expires_at < now()) throw new HttpError(401, 'unauthorized', 'セッションの有効期限が切れました。再度サインインしてください。');
+      .get(sha(token)) as { account_id: string; device_id: string; created_at: number; expires_at: number; revoked: number; last_used_at: number; device_revoked: number } | undefined;
+    const idle = row ? now() - Math.max(row.last_used_at, row.created_at) > SESSION_IDLE_MS : true;
+    if (!row || row.revoked || row.device_revoked || row.expires_at < now() || idle) throw new HttpError(401, 'unauthorized', 'セッションの有効期限が切れました。再度サインインしてください。');
+    db.prepare('UPDATE sessions SET last_used_at = ? WHERE token_hash = ?').run(now(), sha(token));
     db.prepare('UPDATE devices SET last_seen_at = ? WHERE id = ?').run(new Date(now()).toISOString(), row.device_id);
     return { accountId: row.account_id, deviceId: row.device_id, createdAt: row.created_at };
   }
@@ -148,6 +155,8 @@ export function createApp(cfg: AppConfig) {
     const { email } = await json(ctx, z.object({ email: z.email().max(254) }).strict());
     const emailHmac = hmac(email.trim().toLowerCase());
     rateLimit(`otp-email:${emailHmac}`, 3);
+    const { n } = db.prepare('SELECT COUNT(*) AS n FROM otp_challenges WHERE email_hmac = ? AND expires_at > ?').get(emailHmac, now() - 24 * 3600 * 1000 + OTP_TTL_MS) as { n: number };
+    if (n >= OTP_DAILY_CAP) throw new HttpError(429, 'rate_limited', '確認コードの送信回数が上限に達しました。24時間後に再試行してください。');
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const challengeId = hexId('ch');
     db.prepare('INSERT INTO otp_challenges (id, email_hmac, code_hmac, expires_at) VALUES (?, ?, ?, ?)').run(challengeId, emailHmac, hmac(`${challengeId}:${code}`), now() + OTP_TTL_MS);
@@ -186,7 +195,7 @@ export function createApp(cfg: AppConfig) {
       const deviceId = hexId('d');
       const ts = new Date(now()).toISOString();
       db.prepare('INSERT INTO devices (id, account_id, label, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)').run(deviceId, account.id, body.deviceLabel, ts, ts);
-      db.prepare('INSERT INTO sessions (token_hash, account_id, device_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)').run(sha(token), account.id, deviceId, now(), now() + SESSION_TTL_MS);
+      db.prepare('INSERT INTO sessions (token_hash, account_id, device_id, created_at, expires_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?)').run(sha(token), account.id, deviceId, now(), now() + SESSION_TTL_MS, now());
       const hasVault = Boolean(db.prepare('SELECT 1 FROM vault_envelopes WHERE account_id = ?').get(account.id));
       return { accountId: account.id, deviceId, hasVault };
     });
@@ -367,6 +376,7 @@ export function createApp(cfg: AppConfig) {
     } catch {
       return false;
     }
+    if (rel.split(/[\\/]/).some((seg) => seg.startsWith('.'))) return false; // no dotfiles / hidden paths
     let file = join(root, rel);
     if (!file.startsWith(root + sep) && file !== root) return false;
     if (!existsSync(file) || statSync(file).isDirectory()) {
@@ -387,10 +397,16 @@ export function createApp(cfg: AppConfig) {
     const started = now();
     const url = new URL(req.url ?? '/', 'http://localhost');
     const ctx: Ctx = { req, res, url, ip: req.socket.remoteAddress ?? 'unknown' };
-    for (const [k, v] of Object.entries(securityHeaders(cfg.secureCookies))) res.setHeader(k, v);
+    // Worker scripts get their CSP from their own response; inside the OCR/PDF workers the vendor
+    // code calls importScripts(string), so Trusted Types is enforced for the document only.
+    const workerScript = /^\/(ocr|pdfjs)\//.test(url.pathname);
+    for (const [k, v] of Object.entries(securityHeaders(cfg.secureCookies, workerScript))) res.setHeader(k, v);
     let routeName = 'static';
     try {
+      if (cfg.allowedHosts && !cfg.allowedHosts.includes(String(req.headers.host ?? '').toLowerCase())) throw new HttpError(421, 'host_not_allowed');
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'DELETE') throw new HttpError(405, 'method_not_allowed');
       if (url.pathname.startsWith('/api/')) {
+        rateLimit(`ip:${ctx.ip}`, 600);
         checkCsrf(ctx);
         const match = routes.find((r) => r.method === req.method && r.path.test(url.pathname));
         if (!match) throw new HttpError(404, 'not_found');
@@ -410,10 +426,11 @@ export function createApp(cfg: AppConfig) {
   };
 }
 
-export function securityHeaders(https: boolean): Record<string, string> {
+export function securityHeaders(https: boolean, workerScript = false): Record<string, string> {
   return {
     'content-security-policy': [
       "default-src 'self'",
+      ...(workerScript ? [] : ["require-trusted-types-for 'script'", 'trusted-types meishi default']),
       "script-src 'self' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline'", // react-native-web injects <style> elements at runtime
       "img-src 'self' blob: data:",
@@ -427,9 +444,12 @@ export function securityHeaders(https: boolean): Record<string, string> {
     ].join('; '),
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
-    'permissions-policy': 'camera=(self), microphone=(), geolocation=(), payment=()',
+    'permissions-policy': 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), hid=(), display-capture=(), interest-cohort=()',
     'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-embedder-policy': 'require-corp',
     'cross-origin-resource-policy': 'same-origin',
+    'origin-agent-cluster': '?1',
+    'x-permitted-cross-domain-policies': 'none',
     'x-frame-options': 'DENY',
     ...(https ? { 'strict-transport-security': 'max-age=31536000; includeSubDomains' } : {}),
   };

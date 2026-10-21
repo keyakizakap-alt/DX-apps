@@ -57,6 +57,7 @@ if (!ai && env.MEISHI_AI_FAKE === '1') {
 }
 
 const origins = (env.MEISHI_ALLOWED_ORIGINS ?? `http://localhost:${port},http://127.0.0.1:${port}`).split(',').map((s) => s.trim()).filter(Boolean);
+const allowedHosts = [...new Set([...origins.map((o) => new URL(o).host.toLowerCase()), `${host}:${port}`, `localhost:${port}`, `127.0.0.1:${port}`])];
 const handler = createApp({
   db: openDb(dbPath),
   secret,
@@ -65,8 +66,14 @@ const handler = createApp({
   staticDir: env.MEISHI_STATIC_DIR ?? resolve('dist'),
   secureCookies: production || env.MEISHI_SECURE_COOKIES === '1',
   allowedOrigins: origins,
+  allowedHosts,
 });
 
-createServer((req, res) => void handler(req, res)).listen(port, host, () => {
+const server = createServer({ maxHeaderSize: 16 * 1024 }, (req, res) => void handler(req, res));
+// Slow-client (slowloris) limits.
+server.headersTimeout = 20_000;
+server.requestTimeout = 60_000;
+server.keepAliveTimeout = 5_000;
+server.listen(port, host, () => {
   console.log(`meishi-agent sync server: http://${host}:${port}  (AI: ${ai ? 'enabled' : 'disabled'})`);
 });

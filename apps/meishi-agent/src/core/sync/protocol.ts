@@ -2,6 +2,8 @@
 // ciphertext cross the network. Shared by the client and server (server re-validates with Zod).
 import { z } from 'zod';
 
+z.config({ jitless: true }); // no eval (CSP / Trusted Types); see core/zod-config.ts
+
 export const OBJECT_ID = /^[a-z]{1,4}_[0-9a-f]{24}$/;
 export const MAX_ENVELOPE_BASE64 = 256 * 1024; // records
 export const MAX_BLOB_BYTES = 3 * 1024 * 1024; // encrypted images

@@ -1,6 +1,7 @@
 // Image intake for the web: validates type/size, decodes, re-encodes to JPEG (which drops EXIF
 // such as GPS), applies orientation, caps resolution to bound memory, and renders PDF pages.
 import { loadScript } from './script-loader';
+import { trustedScriptURL } from './trusted-types';
 
 export const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 export const MAX_EDGE = 1600;
@@ -54,7 +55,7 @@ export async function processImageFile(file: File): Promise<ProcessedImage[]> {
 }
 
 interface PdfJs {
-  GlobalWorkerOptions: { workerSrc: string };
+  GlobalWorkerOptions: { workerSrc: string; workerPort: Worker | null };
   getDocument(src: { data: Uint8Array; isEvalSupported: boolean; disableFontFace?: boolean }): { promise: Promise<PdfDoc>; destroy(): Promise<void> };
 }
 interface PdfDoc {
@@ -69,6 +70,9 @@ async function loadPdfJs(): Promise<PdfJs> {
     for (let i = 0; i < 50 && !g.__meishiPdfjs; i++) await new Promise((r) => setTimeout(r, 50));
   }
   if (!g.__meishiPdfjs) throw new ImportError('PDF処理エンジンを読み込めませんでした');
+  if (!g.__meishiPdfjs.GlobalWorkerOptions.workerPort) {
+    g.__meishiPdfjs.GlobalWorkerOptions.workerPort = new Worker(trustedScriptURL('/pdfjs/pdf.worker.min.mjs'), { type: 'module' });
+  }
   return g.__meishiPdfjs;
 }
 

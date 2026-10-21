@@ -2,6 +2,8 @@
 // Must only import 'zod' (the server loads this file directly with Node type stripping).
 import { z } from 'zod';
 
+z.config({ jitless: true }); // no eval (CSP / Trusted Types); see core/zod-config.ts
+
 /** Fields a draft request may carry. E-mail addresses and phone numbers are not representable. */
 export const AI_FIELD_LABELS = {
   recipientName: '相手の氏名',

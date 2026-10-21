@@ -68,6 +68,9 @@ const MIGRATIONS: string[] = [
      expires_at INTEGER NOT NULL,
      used INTEGER NOT NULL DEFAULT 0
    );`,
+  // v2: idle-timeout tracking for sessions, lookup index for OTP rate caps.
+  `ALTER TABLE sessions ADD COLUMN last_used_at INTEGER NOT NULL DEFAULT 0;
+   CREATE INDEX otp_by_email ON otp_challenges(email_hmac, expires_at);`,
 ];
 
 export function openDb(path: string): Db {

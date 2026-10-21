@@ -5,9 +5,13 @@ import { AppState as RNAppState, Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppController } from '../core/controller';
 import { createPlatform } from '../platform';
+import { installTrustedTypes, trustedScriptURL } from '../platform/web/trusted-types';
 import { AppProvider, useAppState } from '../ui/app-context';
 import { Banner, Loading, T } from '../ui/components';
 import { color } from '../ui/theme';
+
+// Register the Trusted Types policies before any vendor script can run.
+if (Platform.OS === 'web') installTrustedTypes();
 
 function Boot({ children }: { children: React.ReactNode }) {
   const state = useAppState();
@@ -36,7 +40,7 @@ export default function RootLayout() {
     if (!controller) return;
     void controller.boot();
     if (Platform.OS === 'web' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      navigator.serviceWorker.register('/sw.js').catch(() => undefined); // offline app shell only
+      navigator.serviceWorker.register(trustedScriptURL('/sw.js')).catch(() => undefined); // offline app shell only
     }
     // Lock when the app is hidden (setting), and treat any interaction as activity for auto-lock.
     if (Platform.OS === 'web') {

@@ -30,7 +30,7 @@ export function createTesseractOcr(base = '/ocr'): OcrEngine {
         const T = (globalThis as unknown as { Tesseract?: TesseractGlobal }).Tesseract;
         if (!T) throw new Error('OCRエンジンを読み込めませんでした');
         return T.createWorker('jpn', 1 /* OEM.LSTM_ONLY */, {
-          workerPath: `${base}/worker.min.js`,
+          workerPath: `${base}/worker.min.js`, // checked by the Trusted Types default policy
           corePath: `${base}/core`,
           langPath: `${base}/lang`,
           gzip: true,
