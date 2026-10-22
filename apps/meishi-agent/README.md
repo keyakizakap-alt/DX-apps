@@ -2,7 +2,7 @@
 
 iPhone・Android・PC ブラウザで名刺を取り込み、**端末内で暗号化**して人物・出会いの記録として整理し、**E2EE同期**で同じデータを安全に使うアプリです。Expo SDK 58（Expo Router + React Native Web）の単一コードベースと、暗号文だけを扱う同期サーバーで構成されています。
 
-> 状態（2026-10-21）: **Web版は主要機能を自動試験で確認済み**（単体/統合/セキュリティ 116件、ブラウザE2E 20件）。脅威分析は [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)。**iPhone/Androidネイティブ版は実装済みだが、ビルド・実機は未検証**です。詳細は [docs/PROGRESS.md](docs/PROGRESS.md)、セキュリティ判定は [docs/SECURITY_REPORT.md](docs/SECURITY_REPORT.md)。実名刺での本番利用は **No-Go**（理由は同レポート）。
+> 状態（2026-10-22）: **Web版は主要機能を自動試験で確認済み**（単体/統合/セキュリティ 196件（サーバー系は SQLite と PostgreSQL の両方）、ブラウザE2E 21件）。**Vercel＋Neon への公開準備は完了、デプロイは未実施**（[ADR-007](docs/ADR/007-hosting-vercel-neon.md)、手順は [USER_ACTIONS](docs/USER_ACTIONS.md)）。脅威分析は [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)。**iPhone/Androidネイティブ版は実装済みだが、ビルド・実機は未検証**です。詳細は [docs/PROGRESS.md](docs/PROGRESS.md)、セキュリティ判定は [docs/SECURITY_REPORT.md](docs/SECURITY_REPORT.md)。実名刺での本番利用は **No-Go**（理由は同レポート）。
 
 このフォルダは `DX-apps` リポジトリ直下のアプリ（ANGLE Review）とは独立しています。依存・ビルド・デプロイは共有しません。
 
@@ -25,7 +25,7 @@ apps/meishi-agent/
 ├─ src/core/           暗号・ドメイン・同期・AIポリシー（React非依存、Nodeで試験）
 ├─ src/platform/       OS別実装（*.web.ts: IndexedDB/WebCrypto/Tesseract、*.native.ts: SQLCipher/expo-crypto/SecureStore）
 ├─ src/ui/             共通UI部品・デザイントークン
-├─ server/             同期サーバー（認証・所有者認可・暗号文のみ・外部AIプロキシ）
+├─ server/             同期サーバー（認証・所有者認可・暗号文のみ・外部AIプロキシ）。SQLite／PostgreSQL、Vercel 関数入口
 ├─ tests/              Vitest（unit / integration / security）
 ├─ e2e/run.mts         ブラウザE2E（実サーバー＋Webビルド）
 └─ docs/               PLAN / PROGRESS / ADR / SECURITY_REPORT / USER_ACTIONS / requirements（元の指示パック）
@@ -51,8 +51,14 @@ cd DX-apps/apps/meishi-agent
 npm ci && npm run dev     # = build:web:demo + server
 ```
 
-### iPhone / Android のブラウザで使う
-WebCrypto（暗号化）は **HTTPS でのみ動作**します。`http://192.168.x.x` では起動できません。HTTPS で配信できるサーバーに `dist/` と `server/` を配置してください（手順・必要な設定は [docs/USER_ACTIONS.md](docs/USER_ACTIONS.md)）。iPhone の Safari では「ホーム画面に追加」するとブラウザのデータ消去の影響を受けにくくなります。
+### iPhone / Android のブラウザで使う（Vercel＋Neon で公開）
+WebCrypto（暗号化）は **HTTPS でのみ動作**します。`http://192.168.x.x` では起動できません。公開先は Vercel（無料の Hobby は非商用の個人利用のみ）＋ Neon（PostgreSQL）＋ Resend（確認コードのメール）です。
+```bash
+npm run build:vercel      # .vercel/output（静的ファイル＋/api 関数＋セキュリティ見出し）を生成
+```
+- Vercel のプロジェクト設定: Root Directory `apps/meishi-agent`（`vercel.json` に Build Command 指定済み）。必要な環境変数と手順は [docs/USER_ACTIONS.md](docs/USER_ACTIONS.md) #1〜#4b。
+- 公開後、iPhone の Safari では共有 →「ホーム画面に追加」、Android の Chrome では「アプリをインストール」でアプリのように使えます（PWA）。
+- 自前のサーバーで動かす場合は `npm run server`（`DATABASE_URL` があれば PostgreSQL、無ければ SQLite）。
 
 ### iPhone / Android ネイティブ版（開発ビルド, EAS）
 Windows からでも EAS のクラウドで iOS をビルドできますが、**Apple Developer Program の登録・署名・実機が必要**です。
@@ -78,7 +84,12 @@ npx expo start --dev-client                                         # 実機の�
 | `npm run server` | 同期サーバー＋Web配信 |
 | `npm run test:e2e` | ブラウザE2E（先に `build:web:demo`） |
 | `npm run audit` | 依存脆弱性ゲート |
-| `npm run check` | 上記すべて |
+| `npm run build:vercel` | Vercel 用の出力（本番Webビルド＋関数バンドル） |
+| `node scripts/gen-icons.mjs` | `assets/brand/icon.svg` から全アイコンを再生成 |
+| `npm run check` | 上記すべて（build:vercel を除く） |
+
+## 公開・ストア申請用の文書（下書き）
+プライバシーポリシー・利用規約・App Store／Google Play のデータ申告案・掲載文は [docs/legal/](docs/legal/README.md)。`〔要記入〕` を埋め、専門家の確認を受けてから公開してください。
 
 ## 守っていること（要点）
 - 名刺の氏名・会社・メール・電話・画像・OCR本文は**端末で暗号化**してから保存・送信。サーバーは暗号文と最小限のメタデータのみ（試験でDBとログを走査して確認）。

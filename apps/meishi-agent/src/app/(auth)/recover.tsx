@@ -51,7 +51,7 @@ function CreateConfirm() {
         <Button label={revealed ? '復旧キーを隠す' : '復旧キーを表示'} kind="secondary" compact onPress={() => setRevealed(!revealed)} testID="reveal-recovery-key" />
         <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
           {Platform.OS === 'web' ? (
-            <Button label="テキストファイルで保存" kind="secondary" compact onPress={() => { downloadText(`名刺管理 復旧キー\n${pending.recoveryKey}\n\nこのファイルは安全な場所に保管し、共有しないでください。\n`, 'meishi-recovery-key.txt'); setStored(true); }} />
+            <Button label="テキストファイルで保存" kind="secondary" compact onPress={() => void downloadText(`名刺管理 復旧キー\n${pending.recoveryKey}\n\nこのファイルは安全な場所に保管し、共有しないでください。\n`, 'meishi-recovery-key.txt').then(() => setStored(true), () => setStored(false))} />
           ) : null}
           <Button label="コピー" kind="secondary" compact onPress={async () => { await copySensitive(pending.recoveryKey); setStored(true); }} accessibilityHint="60秒後にクリップボードから消去します" />
         </View>

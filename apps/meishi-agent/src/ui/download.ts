@@ -1,8 +1,5 @@
-// Saving files: web downloads; native shares via the OS sheet is not wired yet (see PROGRESS).
-import { Platform } from 'react-native';
-
-export function downloadText(text: string, filename: string, type = 'text/plain;charset=utf-8') {
-  if (Platform.OS !== 'web') throw new Error('この端末ではファイル保存に未対応です');
+// Saving files (web): a browser download. Native builds use download.native.ts (OS share sheet).
+export async function downloadText(text: string, filename: string, type = 'text/plain;charset=utf-8'): Promise<void> {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

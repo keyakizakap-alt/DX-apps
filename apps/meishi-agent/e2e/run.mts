@@ -621,6 +621,34 @@ try {
     assert.equal(problems.length, 0, `名前なし/小さすぎる操作要素: ${problems.slice(0, 8).join(' | ')}`);
   });
 
+  await scenario('PWA: マニフェスト・アイコン・ホーム画面追加用のメタ情報', async () => {
+    const { ctx, page } = await newContext(browser, 'android');
+    try {
+      await page.goto(server.url);
+      const href = await page.locator('link[rel="manifest"]').getAttribute('href');
+      assert.equal(href, '/manifest.webmanifest', 'manifest のリンクがない。直し方: public/index.html に <link rel="manifest"> を置く');
+      const res = await page.request.get(`${server.url}${href}`);
+      assert.equal(res.status(), 200);
+      assert.match(res.headers()['content-type'] ?? '', /manifest\+json/, 'manifest の Content-Type が違う');
+      const manifest = await res.json();
+      assert.equal(manifest.display, 'standalone');
+      assert.equal(manifest.start_url, '/');
+      const sizes = manifest.icons.map((i: { sizes: string; purpose: string }) => `${i.sizes}/${i.purpose}`).sort();
+      assert.deepEqual(sizes, ['192x192/any', '512x512/any', '512x512/maskable'], 'インストールに必要なアイコンがそろっていない');
+      for (const icon of [...manifest.icons, { src: await page.locator('link[rel="apple-touch-icon"]').getAttribute('href') }]) {
+        const r = await page.request.get(`${server.url}${icon.src}`);
+        assert.equal(r.status(), 200, `${icon.src} が取得できない`);
+        assert.equal(r.headers()['content-type'], 'image/png');
+      }
+      // Google Play requires a web page for account-deletion requests (no reinstall needed).
+      await page.goto(`${server.url}/account-deletion.html`);
+      await page.getByRole('heading', { name: 'アカウントとデータの削除' }).waitFor();
+      assert.ok(await page.getByText('同期アカウントを削除').count(), '削除手順にアプリ内の実際のボタン名がない');
+    } finally {
+      await ctx.close();
+    }
+  });
+
   await scenario('コンソールエラー・CSP違反がない', async () => {
     assert.equal(consoleProblems.length, 0, consoleProblems.slice(0, 10).join('\n'));
   });

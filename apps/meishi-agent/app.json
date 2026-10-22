@@ -15,7 +15,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#173F7A",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -57,7 +57,8 @@
         {
           "faceIDPermission": "保管庫のロック解除にFace IDを使用します。"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "scheme": "meishi-agent",
     "experiments": {

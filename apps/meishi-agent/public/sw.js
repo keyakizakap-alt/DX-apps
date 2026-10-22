@@ -1,8 +1,8 @@
 // Offline support for the web app shell. Caches only same-origin static files (app bundles,
 // OCR/PDF engines). API calls (/api/) and anything cross-origin are never cached, and no
 // personal data is stored here: names and cards live encrypted in IndexedDB.
-const CACHE = 'meishi-shell-v1';
-const STATIC = /^\/(_expo\/static\/|ocr\/|pdfjs\/|assets\/|favicon\.ico$)/;
+const CACHE = 'meishi-shell-v2';
+const STATIC = /^\/(_expo\/static\/|ocr\/|pdfjs\/|assets\/|icons\/|favicon\.ico$|manifest\.webmanifest$)/;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.add('/index.html')).then(() => self.skipWaiting()));

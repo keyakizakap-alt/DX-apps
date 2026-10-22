@@ -4,7 +4,7 @@ const expoConfig = require('eslint-config-expo/flat');
 
 module.exports = defineConfig([
   expoConfig,
-  { ignores: ['dist/*', 'public/*', 'test-results/*', '.expo/*', 'node_modules/*'] },
+  { ignores: ['dist/*', 'public/*', 'test-results/*', '.expo/*', '.vercel/*', 'node_modules/*'] },
   {
     rules: {
       '@typescript-eslint/no-redeclare': 'off', // Zod schema + inferred type share a name by design

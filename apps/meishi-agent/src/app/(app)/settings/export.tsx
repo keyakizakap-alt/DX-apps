@@ -38,17 +38,22 @@ export default function ExportScreen() {
   return (
     <Screen title="バックアップ・書き出し・削除" back="/settings" testID="screen-export">
       {msg ? <Banner tone={msg.tone} testID="export-message">{msg.text}</Banner> : null}
-      {!web ? <Banner tone="warn">この端末ではファイル保存に未対応です。PCのブラウザから実行してください。</Banner> : null}
+      {!web ? <Banner tone="neutral">保存時は端末の共有メニューが開きます（「ファイルに保存」などを選択）。アプリ内の一時ファイルは共有後に削除されます。バックアップからの復元はPCのブラウザで行ってください。</Banner> : null}
       <Section title="暗号化バックアップ（推奨）">
         <Card>
           <T>名刺データを暗号文のまま1つのファイルに保存します。開くには同じ保管庫の復旧キーが必要です。</T>
           <Toggle label="名刺画像も含める" value={images} onChange={setImages} />
           <Row>
-            <Button label={`暗号化バックアップを保存（${count}人）`} disabled={!web} testID="backup-download" onPress={async () => {
+            <Button label={`暗号化バックアップを保存（${count}人）`} testID="backup-download" onPress={async () => {
               const env = await app.recoveryEnvelope();
               if (!env) return;
               const backup = await createEncryptedBackup(session, env, images);
-              downloadText(JSON.stringify(backup), `meishi-backup-${stamp()}.json`, 'application/json');
+              try {
+                await downloadText(JSON.stringify(backup), `meishi-backup-${stamp()}.json`, 'application/json');
+              } catch (e) {
+                setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '保存できませんでした' });
+                return;
+              }
               setMsg({ tone: 'ok', text: `暗号化バックアップを保存しました（レコード ${backup.records.length}件・画像 ${backup.blobs.length}件）。` });
             }} />
             <Button label="バックアップから復元" kind="secondary" disabled={!web} testID="backup-restore" onPress={async () => {
@@ -76,13 +81,19 @@ export default function ExportScreen() {
           <Banner tone="danger" title="暗号化されていないファイルになります">CSVには氏名・会社・メール・電話などが平文で含まれます。保存先・共有範囲に注意し、不要になったら削除してください。</Banner>
           <Field label="再認証: 復旧キー" value={key} onChangeText={setKey} autoCapitalize="characters" testID="reauth-key" />
           {!csvConfirm ? (
-            <Button label="CSVの書き出しを準備" kind="secondary" disabled={!web || key.length < 20} testID="csv-prepare" onPress={async () => { if (await reauth()) setCsvConfirm(true); }} />
+            <Button label="CSVの書き出しを準備" kind="secondary" disabled={key.length < 20} testID="csv-prepare" onPress={async () => { if (await reauth()) setCsvConfirm(true); }} />
           ) : (
             <Banner tone="warn" title={`${count}人分を平文で書き出します`} action={
               <>
                 <Button label={`${count}人分を書き出す`} kind="danger" testID="csv-download" onPress={async () => {
                   const { csv, count: n } = contactsToCsv(session);
-                  downloadText(csv, `meishi-contacts-${stamp()}.csv`, 'text/csv;charset=utf-8');
+                  try {
+                    await downloadText(csv, `meishi-contacts-${stamp()}.csv`, 'text/csv;charset=utf-8');
+                  } catch (e) {
+                    await session.audit('export.csv', 0, 'failure');
+                    setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '書き出せませんでした' });
+                    return;
+                  }
                   await session.audit('export.csv', n);
                   setCsvConfirm(false);
                   setKey('');

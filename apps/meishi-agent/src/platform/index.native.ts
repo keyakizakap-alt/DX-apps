@@ -5,6 +5,7 @@ import * as ExpoCrypto from 'expo-crypto';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
+import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 import { Platform as RNPlatform } from 'react-native';
 import type { Platform } from '../core/controller';
 import { fromHex, toHex } from '../core/crypto/bytes';
@@ -16,6 +17,14 @@ const KEYCHAIN = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONL
 const DB_KEY = 'meishi.dbkey.v1';
 const TOKEN_KEY = 'meishi.session.v1';
 const BIO_KEY = 'meishi.vmk.bio.v1';
+
+// Last known reachability. `isInternetReachable` is null until the first probe; treat unknown as
+// online so a sync attempt decides (failures are reported as offline and keep local edits).
+let online = true;
+const reachable = (s: NetInfoState) => s.isConnected !== false && s.isInternetReachable !== false;
+NetInfo.addEventListener((s) => {
+  online = reachable(s);
+});
 
 export function createPlatform(): Platform {
   const provider = createNativeCryptoProvider(ExpoCrypto as unknown as ExpoCryptoLike);
@@ -53,7 +62,14 @@ export function createPlatform(): Platform {
       },
       clear: () => SecureStore.deleteItemAsync(BIO_KEY, KEYCHAIN),
     },
-    isOnline: () => true, // NetInfo is not installed; sync failures are reported as offline instead
-    onOnlineChange: () => () => {},
+    isOnline: () => online,
+    onOnlineChange: (cb) => {
+      let last = online;
+      return NetInfo.addEventListener((s) => {
+        const now = reachable(s);
+        if (now !== last) cb(now);
+        last = now;
+      });
+    },
   };
 }

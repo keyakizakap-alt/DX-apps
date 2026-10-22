@@ -100,6 +100,25 @@ Androidサイズ 412px: 作成・下部タブ・横スクロールなし。ア�
 - **結果**: Vitest 116件、E2E 20/20（Trusted Types・COEP有効のまま、CSP違反0件）、lint 0件、監査ゲート OK。
 - 脅威分析を [THREAT_MODEL.md](THREAT_MODEL.md)（STRIDE・残余リスク8項目）として追加した。
 
+## 公開準備（2026-10-22）: Vercel＋Neon、PWA、ネイティブの不足分、申請文書
+ユーザーの選択「Vercel無料＋Neon無料」に基づく（[ADR-007](ADR/007-hosting-vercel-neon.md)）。**デプロイは未実施**（外部アカウント作成と公開の許可が必要。[USER_ACTIONS](USER_ACTIONS.md) #1〜#4b）。
+
+| 項目 | 状態 | 検証 |
+|---|---|---|
+| 保存先の非同期化（SQLite／PostgreSQL 同一スキーマ） | 実装済 | サーバー系5ファイルを SQLite と PostgreSQL（PGlite）の両方で実行（Vitest projects） |
+| 同時実行の整合（OTP1回限り・アカウント重複防止・push の行ロック・保管庫の差し替え防止） | 実装済 | `server-storage.test.ts`（両DB） |
+| 本番ドライバー `pg`（型変換・プール・ROLLBACK） | 実装済 | `pg-driver.test.ts`（PGlite ソケット越し） |
+| Resend メール送信・本番設定の安全側エラー | 実装済 | `deploy-config.test.ts`（実APIへの送信は未実施） |
+| Vercel 関数バンドル・ルート（CSP/TT/COOP/COEP/HSTS） | 実装済 | バンドルを読み込み 503/200/401/421 を確認。**Vercel 上の実動作は未検証** |
+| PWA（マニフェスト・アイコン・ホーム画面追加のメタ情報・SW キャッシュ） | 実装済 | E2E「PWA」シナリオ。iPhone/Android 実機での「ホーム画面に追加」は未検証 |
+| アプリアイコン（iOS/Android アダプティブ/モノクロ/PWA/favicon） | 作成済 | `assets/brand/icon.svg` → `node scripts/gen-icons.mjs` |
+| ネイティブ: 書き出し（共有シート、一時ファイル削除） | 実装済 | 型検査のみ。**実機未検証** |
+| ネイティブ: オンライン状態（NetInfo） | 実装済 | 型検査のみ。**実機未検証** |
+| アカウント削除の Web 案内（Google Play 必須） | 作成済 | `public/account-deletion.html`、E2E で表示確認 |
+| プライバシーポリシー・規約・ストア申告・掲載文 | **下書き** | `docs/legal/`。`〔要記入〕`と専門家確認が必要 |
+
+- **結果**: Vitest 196件（SQLite 全件＋PostgreSQL のサーバー系）、E2E 21/21、lint 0件、型検査 OK、監査ゲート OK、`npm run build:vercel` で `.vercel/output` を生成。
+
 ## 画面ID ↔ ルート
 | ID | ルート | ID | ルート |
 |---|---|---|---|
@@ -121,11 +140,11 @@ Androidサイズ 412px: 作成・下部タブ・横スクロールなし。ア�
 | D4 | カメラで50枚連続撮影→中断（アプリ終了）→再開 | NOT_TESTED | NOT_TESTED | — | — |
 | D5 | Face ID/指紋で解除、登録変更時は復旧キーを要求 | NOT_TESTED | NOT_TESTED | — | — |
 | D6 | アプリスイッチャーに名刺が映らない（SEC-18） | NOT_TESTED | NOT_TESTED | — | — |
-| D7 | Web版（HTTPS）で作成・取込・OCR・同期 | NOT_TESTED（Safari） | NOT_TESTED（Chrome） | NOT_TESTED（ChromiumでE2E済） | NOT_TESTED |
+| D7 | Web版（HTTPS・Vercel）で作成・取込・OCR・同期・ホーム画面に追加 | NOT_TESTED（Safari） | NOT_TESTED（Chrome） | NOT_TESTED（ChromiumでE2E済） | NOT_TESTED |
 | D8 | スクリーンリーダー（VoiceOver / TalkBack / NVDA） | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED |
 
 ## 次の作業（優先順）
-1. ユーザー操作: HTTPS配置先・メール送信サービス・EAS/Apple署名（`docs/USER_ACTIONS.md`）。
+1. ユーザー操作: Neon・Resend・秘密鍵の登録と Vercel デプロイの許可（`docs/USER_ACTIONS.md` #1〜#4b）→ 実機ブラウザで D7 を実施。EAS/Apple 署名。
 2. iOS/Android 開発ビルドで D1〜D6 を実施し、SQLCipher・expo-crypto 相互復号を確認。
 3. ML Kit 日本語OCRのネイティブ統合（ADR-006）と、架空名刺セット（縦書き・英数字混在を含む）での精度計測。
 4. iOSアプリスイッチャー保護、既存端末からの端末追加承認、鍵ローテーション。

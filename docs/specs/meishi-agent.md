@@ -19,9 +19,12 @@ iPhone・Android・PCブラウザで名刺を撮影/取込・OCR・整理し、E
 - [x] `cd apps/meishi-agent && npm run lint` が終了コード0で終わる
 - [x] `cd apps/meishi-agent && npm test` が終了コード0で終わる
 - [x] `cd apps/meishi-agent && npm run build:web:demo` で `apps/meishi-agent/dist/index.html` が生成される
-- [x] `cd apps/meishi-agent && npm run test:e2e` の出力に `E2E: 20/20 passed` を含む
+- [x] `cd apps/meishi-agent && npm run test:e2e` の出力に `E2E: 21/21 passed` を含む
 - [x] `cd apps/meishi-agent && npm run audit` の出力に `audit gate: OK` を含む
-- [x] `cd apps/meishi-agent && npm test` の出力に `116 passed` を含む
+- [x] `cd apps/meishi-agent && npm test` の出力に `196 passed` を含む（サーバー系は SQLite と PostgreSQL の両方で実行）
+- [x] `cd apps/meishi-agent && npm run build:vercel` で `apps/meishi-agent/.vercel/output/config.json` と `apps/meishi-agent/.vercel/output/functions/api.func/index.mjs` が生成される
+- [x] `apps/meishi-agent/public/manifest.webmanifest` と `apps/meishi-agent/public/account-deletion.html` が存在する
+- [ ] Vercel の本番URLで `/api/health` が `"ok":true` を返し、iPhone と Android のブラウザでサインイン→名刺登録→PCで表示ができたと `apps/meishi-agent/docs/PROGRESS.md` に記録されている
 - [x] `apps/meishi-agent/docs/THREAT_MODEL.md` が存在する
 - [ ] iPhone実機で `apps/meishi-agent/docs/PROGRESS.md` の「実機検証チェックリスト」の全項目が PASS と記録されている
 - [ ] Android実機で `apps/meishi-agent/docs/PROGRESS.md` の「実機検証チェックリスト」の全項目が PASS と記録されている

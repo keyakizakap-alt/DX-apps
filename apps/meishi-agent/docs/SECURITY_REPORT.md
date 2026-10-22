@@ -1,6 +1,6 @@
 # セキュリティ試験結果（SEC-01〜20）
 
-- 対象: `apps/meishi-agent` ブランチ `claude/meishi-agent-phase0` / Expo SDK 58.0.16 / 実行日 2026-10-21（強化版）
+- 対象: `apps/meishi-agent` ブランチ `claude/meishi-agent-phase0` / Expo SDK 58.0.16 / 実行日 2026-10-21（強化版）、2026-10-22（Vercel＋Neon 対応で再試験）
 - 脅威分析: [THREAT_MODEL.md](THREAT_MODEL.md)
 - 実行環境: Linux コンテナ、Node.js 22.22.0、Chromium 141（Playwright 1.56.1）。**iPhone / Android 実機・Safari は未使用。**
 - 判定: PASS（自動試験で確認）/ PARTIAL（一部環境のみ確認）/ NOT_TESTED（環境未提供）/ BLOCKED（ユーザー操作待ち）
@@ -12,8 +12,8 @@
 | SEC-03 | VMK/APIキー/復旧キーが平文で残らない | PASS（Web） | E2E: localStorage・sessionStorage・cookie・IndexedDB を走査し氏名・メール・電話・復旧キーなし、端末鍵は `extractable=false`。`tests/security/repo-hygiene.test.ts`（秘密情報パターン・.env非追跡）。クライアントバンドルにサーバーコード/鍵名なし | ネイティブ Keychain/Keystore は未検証 |
 | SEC-04 | AAD・nonce・鍵バージョン違反は復号失敗 | PASS | `tests/unit/crypto-vectors.test.ts`（改ざん・objectId/vaultId違い・鍵版・ヘッダ書換・用途違い・nonce非重複）、`sync-e2ee.test.ts`（サーバーによる再送・改ざんを拒否） | — |
 | SEC-05 | iPhone↔Webの相互復号 | PARTIAL | WebCrypto と独立実装（@noble）でバイト一致する共通ベクトル。ネイティブアダプタは expo-crypto 代替で配線を検証 | 実機で `tests/unit/fixtures/envelope-v1-vectors.json` を expo-crypto で復号する試験を実行 |
-| SEC-06 | サーバーへPII・原本・鍵を送らない | PASS | 統合試験＋E2EでサーバーSQLiteの全テーブル・全列とサーバーログを走査し、氏名・メール・電話・復旧キー・タグ文字列が無いことを確認 | 本番ホスティングのリバースプロキシ/アクセスログ設定は運用者確認 |
-| SEC-07 | 他ユーザーの暗号文を読めない・変更できない | PASS | `sync-e2ee.test.ts` SEC-07（pull 0件、blob 404、同一IDへのpushは自分の名前空間、他端末ID詐称は403） | — |
+| SEC-06 | サーバーへPII・原本・鍵を送らない | PASS | 統合試験＋E2EでサーバーDBの全テーブル・全列とサーバーログを走査し、氏名・メール・電話・復旧キー・タグ文字列が無いことを確認。**SQLite と PostgreSQL の両方**で実施 | Vercel のアクセスログ（IP・パス）は運用者確認。メールアドレスは送信時に Resend に渡る（文書化済み） |
+| SEC-07 | 他ユーザーの暗号文を読めない・変更できない | PASS | `sync-e2ee.test.ts` SEC-07（pull 0件、blob 404、同一IDへのpushは自分の名前空間、他端末ID詐称は403）。両DBで実施 | — |
 | SEC-08 | 認証成功だけでは復号できない | PASS | `sync-e2ee.test.ts` SEC-08、`vault.test.ts` | — |
 | SEC-09 | 外部AI無効/未承認ならPII通信0 | PASS | `ai-boundaries.test.ts`（fetchモックで0件）、E2E（承認前の `/api/ai/*` 0件）。サーバー側も規約確認・ZDR確認が無いと無効（`ai-provider.test.ts`） | Groq/Anthropicとの実通信は未実施 |
 | SEC-10 | 承認後はプレビュー項目のみ送信 | PASS | サーバーがSHA-256一致・1回限り・5分・アカウント限定で検証。E2Eで、外した会話メモが送信されないこと、送信項目＝表示項目、**氏名・会社名が伏せ字で実名が通信に出ないこと**、結果が端末内で実名に戻ることを確認 | 言い換えによる推定は残る（THREAT_MODEL 残余リスク5） |
@@ -44,10 +44,23 @@
 | 監査ログ | ハッシュチェーンで改ざん（編集・削除・並べ替え）を検知し画面に表示 | `client-hardening.test.ts`、E2E |
 | 入力耐性 | 暗号文・復旧キー・base64・OCR文字列をランダム入力で試験（型付きのエラーのみ） | `client-hardening.test.ts` |
 
+## サーバーレス公開（Vercel＋Neon）向けの追加（2026-10-22）
+| 対策 | 内容 | 検証 |
+|---|---|---|
+| OTP の二重使用 | 同じコードの同時検証5件 → 成功1件のみ（条件付き UPDATE） | `server-storage.test.ts`（SQLite／PostgreSQL） |
+| アカウント重複 | 同じメールの同時初回サインイン → アカウント1件 | 同上 |
+| 同期の上書き競合 | 2端末の同時 push → 一方 ok・他方 conflict、seq は重複しない（accounts 行ロック） | 同上 |
+| 保管庫の差し替え | 異なる vault_id の同時登録 → 1件のみ成功、以後 409（原子的 upsert） | 同上 |
+| アカウント削除 | 全表から関連行が消える（外部キーの連鎖削除） | 同上 |
+| 本番設定の安全側エラー | 秘密鍵なし・メール未設定・http/パス付きオリジン → 起動拒否。Vercel では設定不足時 503 | `deploy-config.test.ts` |
+| CDN の見出し | 静的ファイルにも同じ CSP・Trusted Types・COOP/COEP・HSTS（ワーカーは TT なし） | `deploy-config.test.ts`（ルート定義）。**Vercel 上の実測は未** |
+| クライアントIP | `x-real-ip`（Vercel が上書き、公式記載）で回数制限 | `server-storage.test.ts` |
+| 回数制限の範囲 | IP 毎分の制限はインスタンス単位（複数インスタンスでは緩くなる）。OTP 1日上限・5回失敗・容量上限は DB 判定 | 設計上の残余リスク（THREAT_MODEL） |
+
 ## 依存関係
 - `npm run audit`（`scripts/audit-runtime.mjs`）: moderate以上の脆弱性のうち、**ビルド専用と確認済み**の `node-forge`（@expo/cli）・`braces`（metro）・`uuid`/`xcode`（config plugins）以外があれば失敗。これらはWebバンドルに含まれないことを確認済み。Expo更新時に再評価。
 - pdf.js: GHSA-hq66-cqwq-w95j（悪意あるPDFで任意JS実行, 5.6.83〜6.2.107）を受け 6.4.299 へ更新（https://github.com/advisories/GHSA-hq66-cqwq-w95j 公式アドバイザリ）。`isEvalSupported:false` とCSPで多層防御。
 
 ## Go / No-Go
-- **架空データでの社内試用（Web版、HTTPS配信）**: 条件付きGo（本番メール送信・HTTPS・バックアップ運用を整えた場合）。
-- **実名刺の本番利用・外部公開・App Store配布**: **No-Go**。理由: SEC-01/05/18/20 の実機未検証、iOS日本語OCR（ML Kit）未統合、本番ホスティング/メール/監視が未構築、第三者によるセキュリティレビュー未実施。
+- **架空データでの試用（Web版、Vercel＋Neon）**: 条件付きGo（USER_ACTIONS #1〜#4b の設定と公開後確認が完了した場合。Hobby は非商用の個人利用のみ）。
+- **実名刺の本番利用・外部公開・App Store配布**: **No-Go**。理由: SEC-01/05/18/20 の実機未検証、iOS日本語OCR（ML Kit）未統合、Vercel 上の実動作・監視が未確認、プライバシーポリシー等が下書き、第三者によるセキュリティレビュー未実施。
