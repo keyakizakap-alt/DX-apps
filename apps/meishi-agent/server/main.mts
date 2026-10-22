@@ -1,48 +1,39 @@
-// Entry point: `npm run server`. Configuration comes from environment variables only.
-import { randomBytes } from 'node:crypto';
+// Entry point: `npm run server` (self-hosted Node). Configuration comes from environment variables
+// only. Storage: PostgreSQL when DATABASE_URL is set, otherwise a local SQLite file.
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
-import { providerFromEnv, type AiProvider } from './ai-provider.mts';
-import { createApp, type Mailer } from './app.mts';
-import { openDb } from './db.mts';
+import type { AiProvider } from './ai-provider.mts';
+import { createApp } from './app.mts';
+import { settingsFromEnv } from './config.mts';
+import { openSqlite } from './db.mts';
+import { openPostgres } from './pg.mts';
+import { nodePgConnection } from './pg-node.mts';
+import type { Sql } from './sql.mts';
 
 const env = process.env;
-const production = env.NODE_ENV === 'production';
 const port = Number(env.PORT ?? 8787);
 const host = env.HOST ?? '127.0.0.1';
-const dbPath = resolve(env.MEISHI_DB_PATH ?? '.data/meishi-sync.sqlite');
-mkdirSync(dirname(dbPath), { recursive: true });
+const settings = settingsFromEnv(env, {
+  origins: [`http://localhost:${port}`, `http://127.0.0.1:${port}`],
+  extraHosts: [`${host}:${port}`, `localhost:${port}`, `127.0.0.1:${port}`],
+});
+settings.warnings.forEach((w) => console.warn(w));
 
-let secret = env.MEISHI_SERVER_SECRET ?? '';
-if (secret.length < 32) {
-  if (production) throw new Error('MEISHI_SERVER_SECRET (>= 32 chars) is required in production');
-  secret = randomBytes(32).toString('hex');
-  console.warn('[dev] MEISHI_SERVER_SECRET is not set; using an ephemeral secret (OTP/e-mail hashes reset on restart).');
+let sql: Sql;
+if (env.DATABASE_URL) {
+  sql = openPostgres(nodePgConnection(env.DATABASE_URL).conn);
+} else {
+  const dbPath = resolve(env.MEISHI_DB_PATH ?? '.data/meishi-sync.sqlite');
+  mkdirSync(dirname(dbPath), { recursive: true });
+  sql = openSqlite(dbPath);
 }
 
-function maskEmail(email: string) {
-  const [user = '', domain = ''] = email.split('@');
-  return `${user.slice(0, 2)}***@${domain}`;
-}
-
-// Development mailer prints the OTP to this terminal. A real mail provider is required for
-// production; see docs/USER_ACTIONS.md. No mail service is contacted from this code base.
-const devMailer: Mailer = {
-  async sendOtp(email, code) {
-    console.log(`[dev-mailer] 確認コード ${code} → ${maskEmail(email)}（開発用。本番ではメール送信サービスを設定してください）`);
-  },
-};
-if (production && env.MEISHI_ALLOW_DEV_MAILER !== '1') throw new Error('No production mailer is configured (see docs/USER_ACTIONS.md)');
-
-// External AI is off unless the operator provides a key AND confirms they reviewed the provider's
-// data-retention / training terms for their organisation.
-const selected = providerFromEnv(env);
-let ai: AiProvider | undefined = selected.provider;
-if (!ai) console.log(`[ai] external AI disabled: ${selected.reason}`);
+let ai: AiProvider | undefined = settings.ai;
+if (!ai) console.log(`[ai] external AI disabled: ${settings.aiReason}`);
 if (!ai && env.MEISHI_AI_FAKE === '1') {
   // Test double for E2E: echoes which fields arrived; never contacts any external service.
-  if (production) throw new Error('MEISHI_AI_FAKE is not allowed in production');
+  if (settings.production) throw new Error('MEISHI_AI_FAKE is not allowed in production');
   ai = {
     destination: 'fake:e2e-echo',
     info: { provider: 'E2E用の偽AI（外部送信なし）', model: 'echo', cost: '無料', dataPolicy: 'テスト専用。どこにも送信しない', region: 'このサーバー内' },
@@ -56,17 +47,17 @@ if (!ai && env.MEISHI_AI_FAKE === '1') {
   };
 }
 
-const origins = (env.MEISHI_ALLOWED_ORIGINS ?? `http://localhost:${port},http://127.0.0.1:${port}`).split(',').map((s) => s.trim()).filter(Boolean);
-const allowedHosts = [...new Set([...origins.map((o) => new URL(o).host.toLowerCase()), `${host}:${port}`, `localhost:${port}`, `127.0.0.1:${port}`])];
 const handler = createApp({
-  db: openDb(dbPath),
-  secret,
-  mailer: devMailer,
+  sql,
+  secret: settings.secret,
+  mailer: settings.mailer,
   ai,
   staticDir: env.MEISHI_STATIC_DIR ?? resolve('dist'),
-  secureCookies: production || env.MEISHI_SECURE_COOKIES === '1',
-  allowedOrigins: origins,
-  allowedHosts,
+  secureCookies: settings.production || env.MEISHI_SECURE_COOKIES === '1',
+  allowedOrigins: settings.allowedOrigins,
+  allowedHosts: settings.allowedHosts,
+  // Only behind a reverse proxy that overwrites this header (e.g. MEISHI_CLIENT_IP_HEADER=x-real-ip).
+  clientIpHeader: env.MEISHI_CLIENT_IP_HEADER || undefined,
 });
 
 const server = createServer({ maxHeaderSize: 16 * 1024 }, (req, res) => void handler(req, res));
@@ -75,5 +66,5 @@ server.headersTimeout = 20_000;
 server.requestTimeout = 60_000;
 server.keepAliveTimeout = 5_000;
 server.listen(port, host, () => {
-  console.log(`meishi-agent sync server: http://${host}:${port}  (AI: ${ai ? 'enabled' : 'disabled'})`);
+  console.log(`meishi-agent sync server: http://${host}:${port}  (storage: ${sql.dialect}, mail: ${settings.mailerKind}, AI: ${ai ? 'enabled' : 'disabled'})`);
 });

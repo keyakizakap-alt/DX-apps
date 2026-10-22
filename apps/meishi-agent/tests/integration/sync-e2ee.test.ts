@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { toBase64 } from '@/core/crypto/bytes';
 import { SyncHttpError } from '@/core/sync/protocol';
 import { makeDevice, signIn } from '../helpers/device';
+import { dumpAllRows } from '../../server/sql.mts';
 import { startTestServer, type TestServer } from '../helpers/server';
 
 const EMAIL = 'kakuu.user@example.test';
@@ -54,10 +55,10 @@ describe('cross-device E2EE sync', () => {
     await addContact(phone);
     await phone.engine.sync();
     const dump: string[] = [];
-    for (const { name } of server.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]) {
-      for (const row of server.db.prepare(`SELECT * FROM ${name}`).all() as Record<string, unknown>[]) {
-        for (const v of Object.values(row)) dump.push(v instanceof Uint8Array ? Buffer.from(v).toString('latin1') + Buffer.from(v).toString('utf8') : String(v));
-      }
+    const rows = await dumpAllRows(server.sql);
+    expect(rows.length, 'DB走査の対象行が0件だった。直し方: dumpAllRows がこのDBの表一覧を取得できているか確認する').toBeGreaterThan(0);
+    for (const { row } of rows) {
+      for (const v of Object.values(row)) dump.push(v instanceof Uint8Array ? Buffer.from(v).toString('latin1') + Buffer.from(v).toString('utf8') : String(v));
     }
     const all = dump.join('\n');
     for (const secret of [...PII, EMAIL, phone.recoveryKey]) {
@@ -152,19 +153,19 @@ describe('cross-device E2EE sync', () => {
     await phone.engine.sync();
     const pc = await makeDevice(server, EMAIL, 'PC', phone.recoveryKey);
     await pc.engine.sync();
-    const old = server.db.prepare('SELECT envelope FROM objects WHERE object_id = ?').get(contact.id) as { envelope: string };
+    const old = (await server.sql.get<{ envelope: string }>('SELECT envelope FROM objects WHERE object_id = ?', contact.id))!;
     await phone.session.commit([{ ...phone.session.get(contact.id, 'contact')!, note: 'v2' }]);
     await phone.engine.sync();
     await pc.engine.sync();
     // Malicious server: re-serve the old ciphertext as a newer revision.
-    server.db.prepare('UPDATE objects SET envelope = ?, revision = revision + 1, seq = seq + 100 WHERE object_id = ?').run(old.envelope, contact.id);
+    await server.sql.run('UPDATE objects SET envelope = ?, revision = revision + 1, seq = seq + 100 WHERE object_id = ?', old.envelope, contact.id);
     const r = await pc.engine.sync();
     expect(r.rejected, '古い暗号文の再送が受理された。直し方: pull で entity.version < maxVersion を拒否する').toBe(1);
     expect(pc.session.get(contact.id, 'contact')?.note).toBe('v2');
     // Bit flip
     const tampered = Buffer.from(old.envelope, 'base64');
     tampered[tampered.length - 1]! ^= 1;
-    server.db.prepare('UPDATE objects SET envelope = ?, revision = revision + 1, seq = seq + 100 WHERE object_id = ?').run(toBase64(tampered), contact.id);
+    await server.sql.run('UPDATE objects SET envelope = ?, revision = revision + 1, seq = seq + 100 WHERE object_id = ?', toBase64(tampered), contact.id);
     expect((await pc.engine.sync()).rejected).toBe(1);
   });
 

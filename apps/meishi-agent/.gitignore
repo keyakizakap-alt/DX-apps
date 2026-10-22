@@ -53,3 +53,4 @@ public/ocr/
 public/pdfjs/pdf.min.mjs
 public/pdfjs/pdf.worker.min.mjs
 .vitest/
+.vercel

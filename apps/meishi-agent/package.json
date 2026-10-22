@@ -6,6 +6,7 @@
     "@anthropic-ai/sdk": "^0.137.0",
     "@noble/hashes": "^2.4.0",
     "@tesseract.js-data/jpn": "^1.0.0",
+    "@vercel/functions": "3.9.11",
     "expo": "~58.0.16",
     "expo-camera": "~58.0.11",
     "expo-clipboard": "~58.0.3",
@@ -24,6 +25,7 @@
     "expo-sqlite": "~58.0.13",
     "expo-status-bar": "~58.0.3",
     "pdfjs-dist": "^6.4.299",
+    "pg": "8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
@@ -34,9 +36,13 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
     "@noble/ciphers": "^2.4.0",
     "@types/node": "^26.6.5",
+    "@types/pg": "8.23.1",
     "@types/react": "~19.3.0",
+    "esbuild": "0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~58.0.4",
     "fake-indexeddb": "^6.2.6",
@@ -58,7 +64,8 @@
     "test:e2e": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/run.mts",
     "check": "npm run audit && npm run typecheck && npm run lint && npm test && npm run build:web:demo && npm run test:e2e",
     "build:web:demo": "node scripts/build-web.mjs --demo",
-    "audit": "node scripts/audit-runtime.mjs"
+    "audit": "node scripts/audit-runtime.mjs",
+    "build:vercel": "node scripts/build-vercel.mjs"
   },
   "private": true,
   "engines": {
