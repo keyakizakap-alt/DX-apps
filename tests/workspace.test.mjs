@@ -13,3 +13,4 @@ test('expired or unavailable authentication cannot prevent clearing browser cred
   const r=await handleWorkspace(request('/api/auth/status',undefined,'__Host-angle_access=fixture'),env);assert.equal(r.status,503);assert.deepEqual(await r.json(),{error:'workspace_unavailable'});
  }finally{globalThis.fetch=previous;}
 });
+test('reminder route rejects a wrong secret of any length and accepts only the exact secret',async()=>{const env2={...env,CRON_SECRET:'fixture-secret'};for(const auth of ['Bearer fixture-secreT','Bearer fixture','Bearer fixture-secret-longer',''])assert.equal((await handleReminders(new Request(origin+'/api/reminders',{headers:auth?{Authorization:auth}:{}}),env2)).status,403,`認証ヘッダー「${auth}」で通過しました。直し方: server/reminders.mjs の sameSecret で完全一致のみ許可する`);assert.equal((await handleReminders(new Request(origin+'/api/reminders',{headers:{Authorization:'Bearer fixture-secret'}}),env2)).status,200,'正しいシークレットで拒否されました。直し方: sameSecret の比較対象を確認する');});
