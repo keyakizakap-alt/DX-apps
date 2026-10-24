@@ -1,0 +1,84 @@
+{
+  "name": "meishi-agent",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
+    "@noble/hashes": "^2.4.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "@tesseract.js-data/jpn": "^1.0.0",
+    "@vercel/functions": "3.9.11",
+    "expo": "~58.0.16",
+    "expo-camera": "~58.0.11",
+    "expo-clipboard": "~58.0.3",
+    "expo-constants": "~58.0.12",
+    "expo-crypto": "~58.0.7",
+    "expo-dev-client": "~58.0.14",
+    "expo-document-picker": "~58.0.4",
+    "expo-file-system": "~58.0.10",
+    "expo-image-manipulator": "~58.0.15",
+    "expo-image-picker": "~58.0.10",
+    "expo-linking": "~58.0.13",
+    "expo-local-authentication": "~58.0.2",
+    "expo-router": "~58.0.24",
+    "expo-screen-capture": "~58.0.5",
+    "expo-secure-store": "~58.0.2",
+    "expo-sharing": "~58.0.20",
+    "expo-sqlite": "~58.0.13",
+    "expo-status-bar": "~58.0.3",
+    "pdfjs-dist": "^6.4.299",
+    "pg": "8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "react-native-web": "^0.21.4",
+    "tesseract.js": "^7.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
+    "@noble/ciphers": "^2.4.0",
+    "@types/node": "^26.6.5",
+    "@types/pg": "8.23.1",
+    "@types/react": "~19.3.0",
+    "esbuild": "0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
+    "fake-indexeddb": "^6.2.6",
+    "playwright-core": "^1.56.1",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  },
+  "scripts": {
+    "start": "expo start",
+    "web": "node scripts/copy-vendor.mjs && expo start --web",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "build:web": "node scripts/build-web.mjs",
+    "server": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/main.mts",
+    "dev": "npm run build:web:demo && npm run server",
+    "test:e2e": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/run.mts",
+    "check": "npm run audit && npm run typecheck && npm run lint && npm test && npm run build:web:demo && npm run test:e2e",
+    "build:web:demo": "node scripts/build-web.mjs --demo",
+    "audit": "node scripts/audit-runtime.mjs",
+    "build:vercel": "node scripts/build-vercel.mjs"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.18"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "4.6.7"
+    },
+    "@expo/cli": {
+      "zod": "4.6.7"
+    }
+  }
+}

@@ -13,3 +13,6 @@ production-records
 /docs/specs
 /scripts/harness
 /tests/harness.test.mjs
+
+# AI名刺管理エージェント（apps/meishi-agent）は別アプリ。ANGLE Review の配信に含めない
+/apps

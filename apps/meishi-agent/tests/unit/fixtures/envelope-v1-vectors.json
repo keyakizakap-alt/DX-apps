@@ -1,0 +1,30 @@
+{
+  "generator": "scripts/gen-vectors.ts (@noble/ciphers + @noble/hashes)",
+  "vmkHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "cases": [
+    {
+      "name": "record-ja",
+      "purpose": "record",
+      "purposeId": 1,
+      "vaultId": "v_00112233445566778899aabbccddeeff",
+      "objectId": "c_0001",
+      "keyVersion": 1,
+      "info": "meishi-card/v1/record/k1",
+      "nonceHex": "000102030405060708090a0b",
+      "plaintext": "{\"name\":\"架空 花子\",\"company\":\"テスト商事株式会社\"}",
+      "envelopeHex": "010100000001000102030405060708090a0b44e0d8000a2dc0e929b64380771d4c6be340f7b709e7804981ce8d94542cfa6ea305e51a52ae2ef6c49d7c1de18349eb6ff0583b9b1db066407e936fc1c6347a5136f2e1bb21a397313c51481b17c74b"
+    },
+    {
+      "name": "blob-ascii",
+      "purpose": "blob",
+      "purposeId": 2,
+      "vaultId": "v_00112233445566778899aabbccddeeff",
+      "objectId": "b_0001",
+      "keyVersion": 1,
+      "info": "meishi-card/v1/blob/k1",
+      "nonceHex": "a0a1a2a3a4a5a6a7a8a9aaab",
+      "plaintext": "test-image-bytes",
+      "envelopeHex": "010200000001a0a1a2a3a4a5a6a7a8a9aaab56e0854329138d63659ec41020f1322b525fd1d832ef5a072024f33da77ef012"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+name: meishi-agent
+
+on:
+  pull_request:
+    paths: ['apps/meishi-agent/**', '.github/workflows/meishi-agent.yml']
+  push:
+    branches: [main]
+    paths: ['apps/meishi-agent/**', '.github/workflows/meishi-agent.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: meishi-agent-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/meishi-agent
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/meishi-agent/package-lock.json
+      - run: npm ci
+      - name: Dependency audit (runtime gate)
+        run: npm run audit
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Unit, integration and security tests
+        run: npm test
+      - name: Web build (with DEMO loader for E2E only)
+        run: npm run build:web:demo
+      - name: Japanese font for the OCR E2E card
+        run: sudo apt-get update && sudo apt-get install -y fonts-ipafont-gothic
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+      - name: Browser E2E (Chromium; not a substitute for iPhone/Android devices)
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: meishi-agent-e2e
+          path: apps/meishi-agent/test-results/e2e
+          retention-days: 7

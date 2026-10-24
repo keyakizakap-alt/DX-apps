@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#2156A5" />
+    <title>アカウントとデータの削除 — 名刺管理</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; background: #F7F8FA; color: #172B44; font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif; }
+      main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+      h1 { font-size: 26px; line-height: 1.4; margin: 0 0 8px; }
+      h2 { font-size: 19px; margin: 32px 0 8px; }
+      .card { background: #fff; border: 1px solid #DCE3EB; border-radius: 14px; padding: 20px 24px; margin-top: 16px; }
+      ol { padding-left: 1.4em; margin: 0; }
+      li + li { margin-top: 6px; }
+      .note { background: #FDF4E7; border-color: #EBCB9D; }
+      a { color: #2156A5; font-weight: 600; }
+      .btn { display: inline-block; margin-top: 12px; padding: 12px 20px; min-height: 44px; box-sizing: border-box; border-radius: 10px; background: #2156A5; color: #fff; text-decoration: none; }
+      .muted { color: #55657A; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>アカウントとデータの削除</h1>
+      <p class="muted">アプリ「名刺管理」（運営: 〔要記入〕）</p>
+
+      <div class="card">
+        <h2>ブラウザから削除する（アプリの再インストールは不要）</h2>
+        <ol>
+          <li>このサイトのトップページを開き、登録したメールアドレスでサインインします（確認コードがメールで届きます）。</li>
+          <li>「設定」→「バックアップ・書き出し・削除」を開きます。</li>
+          <li>「同期アカウントを削除」を選び、確認のうえ「同期アカウントを削除する」を押します（安全のため、サインインから10分以内に行ってください）。</li>
+        </ol>
+        <a class="btn" href="/">名刺管理を開く</a>
+      </div>
+
+      <div class="card">
+        <h2>削除されるデータ</h2>
+        <ul>
+          <li>アカウント情報（メールアドレスのハッシュ値、アカウントID）</li>
+          <li>同期サーバー上の暗号化された名刺データ・名刺画像</li>
+          <li>登録済みの端末とサインイン情報</li>
+        </ul>
+        <p>削除はただちに実行されます。〔要記入: データベース事業者のバックアップに残る期間〕</p>
+      </div>
+
+      <div class="card note">
+        <h2>ご注意</h2>
+        <p>各端末の中に保存された名刺データは、その端末のアプリ（またはブラウザのサイトデータ）を削除すると消えます。サーバーのアカウント削除だけでは端末内のデータは消えません。</p>
+        <p>サインインできない場合: 〔要記入: 問い合わせ先〕へ、登録したメールアドレスからご連絡ください。</p>
+      </div>
+    </main>
+  </body>
+</html>
