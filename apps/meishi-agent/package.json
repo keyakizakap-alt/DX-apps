@@ -80,5 +80,10 @@
     "@expo/cli": {
       "zod": "4.6.7"
     }
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "tesseract.js": false,
+    "unrs-resolver": false
   }
 }
