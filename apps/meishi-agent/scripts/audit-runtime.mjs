@@ -5,7 +5,10 @@
 import { execSync } from 'node:child_process';
 
 const BUILD_TIME_ONLY = new Map([
-  ['node-forge', 'expo CLI code-signing certificates (@expo/cli)'],
+  // GHSA-86w9-cpqp-85rv (<= 1.4.0, no patched release as of 2026-10-24): RSA PKCS#1 v1.5 signature
+  // verification. Used only by @expo/cli for expo-updates code signing, which this app does not use;
+  // not in the web bundle or the server bundle. Remove as soon as a patched node-forge exists.
+  ['node-forge', 'expo CLI code-signing certificates (@expo/cli); no upstream fix yet'],
   ['braces', 'metro file watcher (micromatch)'],
   ['micromatch', 'metro file watcher'],
   ['uuid', 'xcode project parser used by config plugins'],
@@ -13,10 +16,8 @@ const BUILD_TIME_ONLY = new Map([
 ]);
 
 // Individual install paths reviewed as build-time only (the same package elsewhere still blocks).
-const BUILD_TIME_ONLY_NODES = new Map([
-  // zod 3 used by @expo/cli (hoisted under expo/). App code and the server import the top-level zod 4.
-  ['node_modules/expo/node_modules/zod', 'zod 3 inside the Expo CLI (GHSA-mrhx-c7xc-m3w5 is about zod 4 $ZodArray)'],
-]);
+// (empty: the Expo CLI's zod is overridden to 4.6.7 in package.json)
+const BUILD_TIME_ONLY_NODES = new Map([]);
 
 let report;
 try {

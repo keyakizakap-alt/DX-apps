@@ -170,16 +170,16 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
 
 function ContactRow({ label, value, onCopy }: { label: string; value: string; onCopy: () => void }) {
   return (
-    <Row wrap={false} style={{ minHeight: MIN_TAP }}>
-      <T variant="small" style={{ width: 56, color: color.muted }}>{label}</T>
-      <T style={{ flex: 1 }} selectable>{value}</T>
+    <Row wrap={false} style={{ minHeight: MIN_TAP, borderBottomWidth: 1, borderBottomColor: color.line }}>
+      <T variant="small" style={{ width: 48, flexShrink: 0, color: color.muted, fontWeight: '600' }}>{label}</T>
+      <T style={{ flex: 1, flexShrink: 1, minWidth: 0 }} selectable>{value}</T>
       <Button label="コピー" kind="ghost" compact onPress={onCopy} accessibilityHint={`${label}をクリップボードにコピー`} />
     </Row>
   );
 }
 
 const s = StyleSheet.create({
-  item: { padding: space.md, borderRadius: 10, borderWidth: 1, borderColor: color.line, backgroundColor: color.white, gap: 4 },
+  item: { padding: space.md, borderRadius: 12, borderWidth: 1, borderColor: color.line, backgroundColor: color.surfaceMuted, gap: 4 },
   tag: { minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: 999, backgroundColor: color.primaryTint },
   check: { width: MIN_TAP, height: MIN_TAP, borderRadius: 8, borderWidth: 1, borderColor: color.line, alignItems: 'center', justifyContent: 'center' },
 });

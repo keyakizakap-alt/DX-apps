@@ -2,7 +2,7 @@
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle } from 'react-native';
-import { color, font, MIN_TAP, radius, space } from './theme';
+import { color, elevation, font, MIN_TAP, numeric, radius, space } from './theme';
 
 export function T({ children, style, variant = 'body', numberOfLines, selectable, role, testID }: { children: ReactNode; style?: StyleProp<TextStyle>; variant?: 'body' | 'small' | 'muted' | 'title' | 'heading' | 'big' | 'label'; numberOfLines?: number; selectable?: boolean; role?: 'heading' | 'alert' | 'status'; testID?: string }) {
   return (
@@ -129,7 +129,8 @@ export function Badge({ label, tone = 'neutral', testID }: { label: string; tone
   const t = toneStyle[tone];
   return (
     <View style={[styles.badge, { backgroundColor: t.bg, borderColor: t.border }]} testID={testID}>
-      <Text style={[styles.badgeText, { color: t.fg }]}>{label}</Text>
+      <View style={[styles.badgeDot, { backgroundColor: t.fg }]} aria-hidden importantForAccessibility="no" />
+      <Text style={[styles.badgeText, { color: t.fg }]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -137,7 +138,7 @@ export function Badge({ label, tone = 'neutral', testID }: { label: string; tone
 export function Banner({ tone = 'info', title, children, testID, action }: { tone?: Tone; title?: string; children?: ReactNode; testID?: string; action?: ReactNode }) {
   const t = toneStyle[tone];
   return (
-    <View style={[styles.banner, { backgroundColor: t.bg, borderColor: t.border }]} accessibilityRole={tone === 'danger' ? 'alert' : undefined} testID={testID}>
+    <View style={[styles.banner, { backgroundColor: t.bg, borderColor: t.border, borderLeftColor: t.fg }]} accessibilityRole={tone === 'danger' ? 'alert' : undefined} testID={testID}>
       {title ? <Text style={[styles.bannerTitle, { color: t.fg }]}>{title}</Text> : null}
       {typeof children === 'string' ? <Text style={[styles.bannerBody, { color: color.ink }]}>{children}</Text> : children}
       {action ? <View style={{ marginTop: space.sm, flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>{action}</View> : null}
@@ -148,7 +149,14 @@ export function Banner({ tone = 'info', title, children, testID, action }: { ton
 export function EmptyState({ title, body, action, testID }: { title: string; body?: string; action?: ReactNode; testID?: string }) {
   return (
     <View style={styles.empty} testID={testID}>
-      <T variant="heading">{title}</T>
+      <View style={styles.emptyMark} aria-hidden importantForAccessibility="no-hide-descendants">
+        <View style={styles.emptyCardBack} />
+        <View style={styles.emptyCardFront}>
+          <View style={styles.emptyLineA} />
+          <View style={styles.emptyLineB} />
+        </View>
+      </View>
+      <T variant="heading" style={{ textAlign: 'center' }}>{title}</T>
       {body ? <T variant="muted" style={{ textAlign: 'center' }}>{body}</T> : null}
       {action ? <View style={{ marginTop: space.md }}>{action}</View> : null}
     </View>
@@ -229,19 +237,41 @@ export function Chip({ label, selected, onPress, testID }: { label: string; sele
   );
 }
 
+// Initials avatar. Colour is derived from the id (stable, local only) and is decorative: the name is
+// always shown as text next to it, so the avatar is hidden from assistive technology.
+const AVATAR_TONES = [
+  { bg: '#E6ECFA', fg: '#18388C' },
+  { bg: '#E4F1EA', fg: '#1B5A3E' },
+  { bg: '#F7ECDD', fg: '#7A4810' },
+  { bg: '#EFE7F5', fg: '#55307A' },
+  { bg: '#E3EEF3', fg: '#1D4E63' },
+  { bg: '#F5E6E8', fg: '#82242F' },
+] as const;
+export function Avatar({ name, id, size = 40 }: { name: string; id: string; size?: number }) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const tone = AVATAR_TONES[h % AVATAR_TONES.length]!;
+  const initials = name.replace(/\s+/g, '').slice(0, 1) || '？';
+  return (
+    <View aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: tone.bg }]}>
+      <Text style={[styles.avatarText, { color: tone.fg, fontSize: Math.round(size * 0.42) }]}>{initials}</Text>
+    </View>
+  );
+}
+
 export const styles = StyleSheet.create({
   text: { color: color.ink, fontFamily: font.family, fontSize: font.body, lineHeight: 24 },
   body: {},
   small: { fontSize: font.small, lineHeight: 19 },
   muted: { color: color.muted, fontSize: 14, lineHeight: 21 },
-  label: { fontSize: font.small, fontWeight: '700', color: color.muted, letterSpacing: 0.4 },
-  title: { fontSize: font.title, fontWeight: '700', lineHeight: 30 },
-  heading: { fontSize: font.heading, fontWeight: '700', lineHeight: 26 },
-  big: { fontSize: font.big, fontWeight: '700', lineHeight: 34 },
-  button: { minHeight: MIN_TAP, paddingHorizontal: space.lg, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: space.sm, borderWidth: 1 },
+  label: { fontSize: 12, fontWeight: '700', color: color.muted, letterSpacing: 0.6 },
+  title: { fontSize: font.title, fontWeight: '800', lineHeight: 34, letterSpacing: -0.3 },
+  heading: { fontSize: font.heading, fontWeight: '700', lineHeight: 26, letterSpacing: -0.1 },
+  big: { fontSize: font.big, fontWeight: '800', lineHeight: 38, letterSpacing: -0.5, ...numeric },
+  button: { minHeight: MIN_TAP, paddingHorizontal: 18, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: space.sm, borderWidth: 1 },
   buttonCompact: { paddingHorizontal: space.md },
-  btn_primary: { backgroundColor: color.primary, borderColor: color.primary },
-  btn_secondary: { backgroundColor: color.white, borderColor: color.line },
+  btn_primary: { backgroundColor: color.primary, borderColor: color.primaryDeep, ...elevation.button },
+  btn_secondary: { backgroundColor: color.white, borderColor: color.lineStrong },
   btn_ghost: { backgroundColor: 'transparent', borderColor: 'transparent' },
   btn_danger: { backgroundColor: color.danger, borderColor: color.danger },
   buttonText: { fontFamily: font.family, fontSize: 15, fontWeight: '700' },
@@ -254,7 +284,7 @@ export const styles = StyleSheet.create({
   focus: Platform.select({ web: { outlineStyle: 'solid', outlineWidth: 3, outlineColor: color.focus, outlineOffset: 2 } as ViewStyle, default: {} }),
   field: { gap: 6, marginBottom: space.md },
   fieldLabel: { fontFamily: font.family, fontSize: 14, fontWeight: '700', color: color.ink },
-  input: { minHeight: MIN_TAP, borderWidth: 1, borderColor: color.line, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: 10, fontSize: font.body, color: color.ink, backgroundColor: color.white, fontFamily: font.family },
+  input: { minHeight: MIN_TAP, borderWidth: 1, borderColor: color.lineStrong, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: 10, fontSize: font.body, color: color.ink, backgroundColor: color.white, fontFamily: font.family },
   inputMultiline: { minHeight: 96, textAlignVertical: 'top' },
   inputFocus: { borderColor: color.primary, ...(Platform.OS === 'web' ? ({ outlineStyle: 'solid', outlineWidth: 2, outlineColor: color.focus } as object) : {}) },
   inputError: { borderColor: color.danger },
@@ -263,20 +293,28 @@ export const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, minHeight: MIN_TAP, borderBottomWidth: 1, borderBottomColor: color.line },
   toggleLabel: { fontFamily: font.family, fontSize: font.body, fontWeight: '600', color: color.ink },
   toggleState: { fontFamily: font.family, fontSize: 13, fontWeight: '700' },
-  card: { backgroundColor: color.white, borderRadius: radius.lg, borderWidth: 1, borderColor: color.line, padding: space.lg, gap: space.sm },
-  section: { gap: space.md, marginBottom: space.xl },
+  card: { backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.line, padding: 20, gap: space.sm, ...elevation.card },
+  section: { gap: space.md, marginBottom: space.xxl },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' },
-  badge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2, borderWidth: 1 },
-  badgeText: { fontFamily: font.family, fontSize: 12, fontWeight: '700', lineHeight: 18 },
-  banner: { borderWidth: 1, borderRadius: radius.md, padding: space.md, gap: 4, marginBottom: space.md },
+  badge: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1 },
+  badgeDot: { width: 6, height: 6, borderRadius: 3 },
+  badgeText: { flexShrink: 1, fontFamily: font.family, fontSize: 12, fontWeight: '700', lineHeight: 18 },
+  banner: { borderWidth: 1, borderLeftWidth: 4, borderRadius: radius.md, paddingVertical: space.md, paddingHorizontal: space.lg, gap: 4, marginBottom: space.md },
   bannerTitle: { fontFamily: font.family, fontSize: 15, fontWeight: '700' },
   bannerBody: { fontFamily: font.family, fontSize: 14, lineHeight: 21 },
   empty: { alignItems: 'center', justifyContent: 'center', padding: space.xxl, gap: space.sm },
+  emptyMark: { width: 96, height: 72, marginBottom: space.md },
+  emptyCardBack: { position: 'absolute', left: 14, top: 4, width: 74, height: 46, borderRadius: 8, backgroundColor: color.primaryTint, transform: [{ rotate: '-8deg' }] },
+  emptyCardFront: { position: 'absolute', left: 8, top: 18, width: 80, height: 50, borderRadius: 8, backgroundColor: color.white, borderWidth: 1, borderColor: color.lineStrong, padding: 10, gap: 6, ...elevation.card },
+  emptyLineA: { width: 38, height: 6, borderRadius: 3, backgroundColor: color.primary },
+  emptyLineB: { width: 52, height: 5, borderRadius: 3, backgroundColor: color.line },
+  avatar: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatarText: { fontFamily: font.family, fontWeight: '700' },
   screen: { flex: 1, backgroundColor: color.bg },
   scrollContent: { flexGrow: 1 },
-  screenInner: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: space.lg, paddingBottom: 96 },
+  screenInner: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: space.lg, paddingTop: space.xl, paddingBottom: 96 },
   narrow: { maxWidth: 560 },
-  header: { marginBottom: space.lg, gap: space.xs },
+  header: { marginBottom: space.xl, gap: space.xs },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, flexWrap: 'wrap' },
   headerActions: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' },
   back: { minHeight: MIN_TAP, justifyContent: 'center', alignSelf: 'flex-start', paddingRight: space.md },
@@ -284,7 +322,7 @@ export const styles = StyleSheet.create({
   kv: { paddingVertical: 6, gap: 2 },
   kvLabel: { fontFamily: font.family, fontSize: 13, color: color.muted, fontWeight: '600' },
   kvValue: { fontFamily: font.family, fontSize: font.body, color: color.ink },
-  chip: { minHeight: MIN_TAP, paddingHorizontal: space.md, borderRadius: 999, borderWidth: 1, borderColor: color.line, backgroundColor: color.white, justifyContent: 'center' },
-  chipOn: { backgroundColor: color.primary, borderColor: color.primary },
+  chip: { minHeight: MIN_TAP, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: color.lineStrong, backgroundColor: color.white, justifyContent: 'center' },
+  chipOn: { backgroundColor: color.ink, borderColor: color.ink },
   chipText: { fontFamily: font.family, fontSize: 14, color: color.ink, fontWeight: '600' },
 });

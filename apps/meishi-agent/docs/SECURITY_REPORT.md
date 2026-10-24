@@ -59,7 +59,8 @@
 
 ## 依存関係
 - `npm run audit`（`scripts/audit-runtime.mjs`）: moderate以上の脆弱性のうち、**ビルド専用と確認済み**の `node-forge`（@expo/cli）・`braces`（metro）・`uuid`/`xcode`（config plugins）以外があれば失敗。これらはWebバンドルに含まれないことを確認済み。Expo更新時に再評価。
-- zod: GHSA-mrhx-c7xc-m3w5（巨大な配列でメモリ枯渇, zod 4 の `$ZodArray`, 4.6.6 で修正, 2026-10-24 検出）。アプリ・サーバーは 4.6.7。`@vercel/functions` 経由の 4.1.11 は `overrides` で 4.6.7 に置換。Expo CLI 内の zod 3 はビルド専用として経路単位で許可（`scripts/audit-runtime.mjs`）。
+- zod: GHSA-mrhx-c7xc-m3w5（巨大な配列でメモリ枯渇, zod 4 の `$ZodArray`, 4.6.6 で修正, 2026-10-24 検出）。アプリ・サーバー・`@vercel/functions`・Expo CLI のすべてを 4.6.7 に統一（`package.json` の `overrides`。Expo CLI の zod 利用箇所は開発サーバーの DevTools スキーマのみで、読み込みを確認）。
+- node-forge: GHSA-86w9-cpqp-85rv（high, <= 1.4.0, **2026-10-24 時点で修正版なし**）。RSA 署名検証の不備。Expo CLI の EAS Update 用コード署名でのみ使われ、本アプリは使用しない。Web とサーバーの配信物に含まれないことを確認（`dist/`・`.vercel/output` を検索して 0 件）。修正版が出たら更新し、許可リストから外す。
 - pdf.js: GHSA-hq66-cqwq-w95j（悪意あるPDFで任意JS実行, 5.6.83〜6.2.107）を受け 6.4.299 へ更新（https://github.com/advisories/GHSA-hq66-cqwq-w95j 公式アドバイザリ）。`isEvalSupported:false` とCSPで多層防御。
 
 ## Go / No-Go

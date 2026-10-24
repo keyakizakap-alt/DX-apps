@@ -40,6 +40,7 @@ const jobs = [
   ['public/icons/icon-512.png', svg, 512],
   ['public/icons/maskable-512.png', svg, 512],
   ['public/icons/apple-touch-icon.png', svg, 180],
+  ['assets/brand/mark.png', svg, 96], // in-app brand mark (sidebar, top bar, welcome)
 ];
 
 mkdirSync('public/icons', { recursive: true });
