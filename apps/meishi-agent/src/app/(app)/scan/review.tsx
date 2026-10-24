@@ -103,10 +103,10 @@ function ReviewForm({ item, heldCard }: { item?: ScanItem; heldCard?: BusinessCa
   ) : null;
 
   return (
-    <Screen title="読み取り結果の確認" subtitle={item ? `名刺 #${String(item.index + 1).padStart(3, '0')}・原本と照合してから保存してください` : '手入力で名刺を登録'} back="/scan/queue" testID="screen-review">
+    <Screen title="読み取り結果の確認" subtitle={item ? `名刺 #${String(item.index + 1).padStart(3, '0')}` : '手入力'} back="/scan/queue" testID="screen-review">
       {error ? <Banner tone="danger" testID="review-error">{error}</Banner> : null}
-      {item && !item.ocrLines?.length ? <Banner tone="warn">自動読み取りの結果がありません。原本を見ながら入力してください。</Banner> : null}
-      {unverified > 0 ? <Banner tone="warn" title={`未確認の項目が${unverified}件あります`}>OCRが推測した値は自動では確定しません。各項目を原本と照合し「確認」を押してください。</Banner> : null}
+      {item && !item.ocrLines?.length ? <Banner tone="warn">読み取り結果がありません</Banner> : null}
+      {unverified > 0 ? <Banner tone="warn" title={`未確認の項目が${unverified}件あります`} /> : null}
       <View style={desktop ? { flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' } : { gap: space.lg }}>
         {imagePanel}
         <Card style={desktop ? { flex: 1.2 } : undefined}>
@@ -149,7 +149,6 @@ function ReviewForm({ item, heldCard }: { item?: ScanItem; heldCard?: BusinessCa
       {candidates.length > 0 ? (
         <Card style={{ marginTop: space.lg, borderColor: '#EED7B5' }} testID="duplicate-panel">
           <T variant="heading">同じ人物の可能性がある登録があります</T>
-          <T variant="muted">自動では統合しません。異動・転職の場合は「同じ人物」を選ぶと、以前の所属は履歴として残ります。</T>
           {candidates.map((c) => {
             const v = session.index.views.get(c.subjectId)!;
             return (

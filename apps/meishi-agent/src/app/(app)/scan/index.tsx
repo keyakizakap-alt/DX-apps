@@ -72,10 +72,9 @@ export default function Scan() {
   });
 
   return (
-    <Screen title="名刺を取り込む" subtitle={`1回の取り込みは最大${MAX_SESSION_ITEMS}枚。中断しても続きから再開できます。`} testID="screen-scan">
+    <Screen title="名刺を取り込む" testID="screen-scan">
       <Row style={{ marginBottom: space.md }}>
         <Badge label={`現在のキュー ${inSession}/${MAX_SESSION_ITEMS}`} tone={inSession ? 'info' : 'neutral'} />
-        <Badge label={`OCR: ${app.platform.ocr.label}`} tone="neutral" />
         {state.ocrRunning ? <Badge label="読み取り処理中" tone="info" /> : null}
       </Row>
       {messages.map((m, i) => (
@@ -86,13 +85,11 @@ export default function Scan() {
       <View style={desktop ? { flexDirection: 'row', gap: space.lg } : { gap: space.lg }}>
         <Card style={{ flex: 1 }}>
           <T variant="heading">スマートフォンで撮影</T>
-          <T variant="muted">背面カメラが開きます。名刺を枠いっぱいに、影や反射が入らないように撮影してください。表裏がある場合は1枚ずつ撮影します。</T>
           <Button label="カメラで撮影" icon="📷" onPress={() => add('camera')} busy={busy} testID="capture-camera" />
-          <T variant="muted">カメラが許可されていない場合は、ブラウザ/端末の設定でカメラへのアクセスを許可してください。</T>
         </Card>
         <View ref={dropRef as never} style={[styles.drop, dragOver && styles.dropOver, { flex: 1 }]} testID="drop-zone">
           <T variant="heading">画像・PDFを選択</T>
-          <T variant="muted">JPEG / PNG / WebP / HEIC（ブラウザが対応する場合）/ PDF（10ページまで）。PCではここにドラッグ＆ドロップもできます。</T>
+          <T variant="muted">画像・PDF（ドラッグ＆ドロップ可）</T>
           <Button label="ファイルを選ぶ" kind="secondary" onPress={() => add('files')} busy={busy} testID="pick-files" />
           <Text style={styles.dropHint}>{dragOver ? 'ここにドロップ' : ''}</Text>
         </View>
@@ -101,11 +98,6 @@ export default function Scan() {
         <Button label={`取込キューを見る（${inSession}件）`} onPress={() => router.push('/scan/queue')} disabled={!inSession} testID="open-queue" />
         <Button label="手入力で登録" kind="secondary" onPress={() => router.push({ pathname: '/scan/review', params: { manual: '1' } })} testID="manual-entry" />
       </Row>
-      <View style={{ marginTop: space.lg }}>
-        <Banner tone="neutral" title="端末内処理">
-          {`画像は端末内で縮小・再エンコード（位置情報などのEXIFは除去）し、暗号化して保存します。文字の読み取りも端末内で行い、外部のOCRサービスには送信しません。${app.platform.ocr.id === 'manual' ? 'この環境では自動読み取りに未対応のため、確認画面で手入力します。' : '現在の読み取りは横書きの日本語・英語に対応しています（縦書きは精度が下がります）。'}`}
-        </Banner>
-      </View>
     </Screen>
   );
 }

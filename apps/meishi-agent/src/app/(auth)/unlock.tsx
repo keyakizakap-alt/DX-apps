@@ -3,10 +3,10 @@
 import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useNow } from '../../ui/use-now';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { UnlockThrottledError } from '../../core/controller';
 import { useApp, useAppState } from '../../ui/app-context';
-import { Badge, Banner, Button, Chip, Field, Row, Screen, T } from '../../ui/components';
+import { Banner, Button, Chip, Field, Row, Screen } from '../../ui/components';
 import { space } from '../../ui/theme';
 
 export default function Unlock() {
@@ -39,15 +39,10 @@ export default function Unlock() {
   };
 
   return (
-    <Screen title="保管庫はロックされています" subtitle="名刺データを表示するには解除してください" narrow testID="screen-unlock">
-      <Row style={{ marginBottom: space.md }}>
-        <Badge label="ロック中" tone="warn" />
-        <Badge label={state.account ? '同期アカウント: サインイン済み' : 'この端末のみ'} tone="neutral" />
-      </Row>
+    <Screen title="ロック中" narrow testID="screen-unlock">
       {state.biometricAvailable ? (
         <View style={{ marginBottom: space.md }}>
           <Button label="Face ID / 指紋で解除" onPress={async () => { try { await app.unlockWithBiometric(); router.replace('/home'); } catch (e) { setError(e instanceof Error ? e.message : '解除できませんでした'); } }} />
-          <T variant="muted">生体認証は鍵を取り出す補助です。登録変更・再インストール時は復旧キーが必要です。</T>
         </View>
       ) : null}
       {state.hasPasscode ? (
@@ -71,10 +66,6 @@ export default function Unlock() {
         onSubmitEditing={() => void submit()}
       />
       <Button label="解除する" testID="unlock-submit" disabled={!secret || wait > 0} onPress={submit} />
-      <View style={{ height: space.xl }} />
-      <T variant="muted">
-        {Platform.OS === 'web' ? 'ロック中は名刺データを画面に表示せず、復号用の鍵をメモリから破棄します（ブラウザの仕組み上、完全な消去は保証できません）。' : 'ロック中は名刺データを画面に表示しません。'}
-      </T>
     </Screen>
   );
 }

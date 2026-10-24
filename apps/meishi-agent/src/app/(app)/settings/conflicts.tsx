@@ -38,7 +38,7 @@ export default function Conflicts() {
   }, [session, snapshot]);
 
   return (
-    <Screen title="同期の競合" subtitle="どちらの端末の変更も失われていません。採用する内容を選んでください。" back="/settings/sync" testID="screen-conflicts">
+    <Screen title="同期の競合" subtitle="採用する内容を選んでください" back="/settings/sync" testID="screen-conflicts">
       {conflicts.length === 0 ? <EmptyState title="競合はありません" testID="conflicts-empty" /> : null}
       {conflicts.map((c) => {
         const mine = session.getAny(c.id);

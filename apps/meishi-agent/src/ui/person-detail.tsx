@@ -56,7 +56,7 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
       </Row>
 
       <Section title="連絡先">
-        {copied ? <Banner tone="warn">コピーしました。60秒後にクリップボードから消去します。</Banner> : null}
+        {copied ? <Banner tone="ok">コピーしました（60秒後に消去）</Banner> : null}
         {c.emails.length === 0 && c.phones.length === 0 ? <T variant="muted">連絡先は未登録です。</T> : null}
         {c.emails.map((e) => (
           <ContactRow key={e} label="メール" value={e} onCopy={() => copy(e)} />
@@ -83,7 +83,7 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
       </Section>
 
       <Section title={`出会いの記録（${view.encounters.length}）`}>
-        {view.encounters.length === 0 ? <T variant="muted">まだ記録がありません。「出会いのメモ」から追加できます。</T> : null}
+        {view.encounters.length === 0 ? <T variant="muted">まだありません</T> : null}
         {view.encounters.map((e) => (
           <Pressable key={e.id} accessibilityRole="button" onPress={() => router.push({ pathname: `/people/${id}/encounter`, params: { encounterId: e.id } })} style={s.item} testID="encounter-row">
             <Row>
@@ -170,16 +170,16 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
 
 function ContactRow({ label, value, onCopy }: { label: string; value: string; onCopy: () => void }) {
   return (
-    <Row wrap={false} style={{ minHeight: MIN_TAP }}>
-      <T variant="small" style={{ width: 56, color: color.muted }}>{label}</T>
-      <T style={{ flex: 1 }} selectable>{value}</T>
+    <Row wrap={false} style={{ minHeight: MIN_TAP, borderBottomWidth: 1, borderBottomColor: color.line }}>
+      <T variant="small" style={{ width: 48, flexShrink: 0, color: color.muted, fontWeight: '600' }}>{label}</T>
+      <T style={{ flex: 1, flexShrink: 1, minWidth: 0 }} selectable>{value}</T>
       <Button label="コピー" kind="ghost" compact onPress={onCopy} accessibilityHint={`${label}をクリップボードにコピー`} />
     </Row>
   );
 }
 
 const s = StyleSheet.create({
-  item: { padding: space.md, borderRadius: 10, borderWidth: 1, borderColor: color.line, backgroundColor: color.white, gap: 4 },
+  item: { padding: space.md, borderRadius: 12, borderWidth: 1, borderColor: color.line, backgroundColor: color.surfaceMuted, gap: 4 },
   tag: { minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: 999, backgroundColor: color.primaryTint },
   check: { width: MIN_TAP, height: MIN_TAP, borderRadius: 8, borderWidth: 1, borderColor: color.line, alignItems: 'center', justifyContent: 'center' },
 });

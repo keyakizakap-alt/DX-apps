@@ -30,10 +30,9 @@ export default function Queue() {
       actions={<Button label={ready.length ? `要確認へ進む（${ready.length}件）` : '要確認へ進む'} disabled={!ready.length} onPress={() => router.push({ pathname: '/scan/review', params: { item: ready[0]!.id } })} testID="go-review" />}>
       {waiting > 0 && !state.ocrRunning ? (
         <Banner tone="warn" title="読み取りが停止しています" action={<Button label="再開する" compact onPress={() => app.startQueue()} testID="resume-queue" />}>
-          前回の処理が中断されました。続きから再開できます。
         </Banner>
       ) : null}
-      {state.ocrRunning ? <Banner tone="info">端末内で読み取り中です。完了した行から順に確認できます。</Banner> : null}
+      {state.ocrRunning ? <Badge label="読み取り中" tone="info" /> : null}
       {items.length === 0 ? (
         <EmptyState title="キューは空です" body="取り込んだ名刺はすべて処理済みです。" action={<Button label="名刺を取り込む" onPress={() => router.push('/scan')} />} testID="queue-empty" />
       ) : (

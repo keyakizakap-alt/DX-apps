@@ -5,7 +5,6 @@ import { View } from 'react-native';
 import { SyncHttpError } from '../../core/sync/protocol';
 import { useApp, useAppState } from '../../ui/app-context';
 import { Badge, Banner, Button, Field, Screen, T } from '../../ui/components';
-import { space } from '../../ui/theme';
 
 function describe(e: unknown): string {
   if (e instanceof SyncHttpError) {
@@ -28,12 +27,8 @@ export default function SignIn() {
   const restoring = mode === 'restore';
 
   return (
-    <Screen title="メールでサインイン" subtitle={restoring ? '同期データを復元するアカウントにサインインします' : '同期用アカウント'} back narrow testID="screen-sign-in">
-      <Row2>
-        <Badge label={state.account ? 'サインイン済み' : '未サインイン'} tone={state.account ? 'ok' : 'neutral'} />
-        <Badge label={state.phase === 'unlocked' ? '保管庫: 解除中' : '保管庫: ロック中/未作成'} tone="neutral" />
-      </Row2>
-      <Banner tone="info">サインインはアカウントの確認のみです。名刺を読むには、別途「復旧キー」で保管庫を解除します。</Banner>
+    <Screen title="サインイン" back narrow testID="screen-sign-in">
+      {state.account ? <Badge label="サインイン済み" tone="ok" /> : null}
       {error ? <Banner tone="danger" title="エラー">{error}</Banner> : null}
       {!sent ? (
         <View>
@@ -55,7 +50,7 @@ export default function SignIn() {
       ) : (
         <View>
           <T variant="muted" role="status">
-            {email} に6桁の確認コードを送りました（{Math.round(sent.expiresInSec / 60)}分間有効）。届かない場合は迷惑メールフォルダを確認し、再送してください。
+            {email} に確認コードを送りました（{Math.round(sent.expiresInSec / 60)}分間有効）
           </T>
           <Field label="確認コード（6桁）" testID="otp" value={code} onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" inputMode="numeric" autoComplete="one-time-code" required />
           <Button
@@ -80,8 +75,4 @@ export default function SignIn() {
       )}
     </Screen>
   );
-}
-
-function Row2({ children }: { children: React.ReactNode }) {
-  return <View style={{ flexDirection: 'row', gap: space.sm, marginBottom: space.md, flexWrap: 'wrap' }}>{children}</View>;
 }

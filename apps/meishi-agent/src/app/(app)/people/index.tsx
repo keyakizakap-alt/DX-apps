@@ -6,10 +6,10 @@ import { FlatList, Pressable, StyleSheet, TextInput, useWindowDimensions, View }
 import { searchContacts, type SearchFilters } from '../../../core/domain/search';
 import type { ReviewStatus } from '../../../core/domain/schemas';
 import { useVault } from '../../../ui/app-context';
-import { Badge, Button, Chip, EmptyState, Row, Screen, T } from '../../../ui/components';
+import { Avatar, Badge, Button, Chip, EmptyState, Row, Screen, T } from '../../../ui/components';
 import { PersonDetail } from '../../../ui/person-detail';
 import { STATUS_LABEL, STATUS_TONE } from '../../../ui/status';
-import { color, DESKTOP_MIN_WIDTH, font, MIN_TAP, space } from '../../../ui/theme';
+import { color, DESKTOP_MIN_WIDTH, elevation, font, numeric, space } from '../../../ui/theme';
 
 export default function People() {
   const params = useLocalSearchParams<{ focus?: string; status?: ReviewStatus; tag?: string; q?: string }>();
@@ -88,7 +88,7 @@ export default function People() {
   );
 
   return (
-    <Screen title="人物一覧" subtitle={`検索結果 ${hits.length}件 ・ 検索は端末内で行い、サーバーには送信しません`} testID="screen-people" scroll={!desktop}
+    <Screen title="人物一覧" subtitle={`${hits.length}件`} testID="screen-people" scroll={!desktop}
       actions={<Button label="＋ 取り込み" compact onPress={() => router.push('/scan')} />}>
       {unattachedCards.length ? (
         <Pressable onPress={() => router.push({ pathname: '/scan/review', params: { card: unattachedCards[0]!.id } })} accessibilityRole="button" style={s.held}>
@@ -101,9 +101,7 @@ export default function People() {
           <View style={s.filters}>{filterPanel}</View>
           <View style={s.table} accessibilityRole="list">
             <View style={[s.tr, s.th]}>
-              <T style={[s.c1, s.thText]}>氏名</T>
-              <T style={[s.c2, s.thText]}>会社</T>
-              <T style={[s.c3, s.thText]}>役職</T>
+              <T style={[s.c1, s.thText]}>氏名・会社</T>
               <T style={[s.c4, s.thText]}>最終面会</T>
               <T style={[s.c5, s.thText]}>状態</T>
             </View>
@@ -115,10 +113,14 @@ export default function People() {
               windowSize={10}
               renderItem={({ item: h }) => (
                 <Pressable accessibilityRole="button" accessibilityLabel={`${h.view.contact.fullName} ${h.view.current?.organization?.name ?? ''}`} onPress={() => setSelected(h.view.contact.id)} onLongPress={() => router.push(`/people/${h.view.contact.id}`)} style={[s.tr, selected === h.view.contact.id && s.trOn]} testID="people-row">
-                  <T style={s.c1} numberOfLines={1}>{h.view.contact.fullName}</T>
-                  <T style={s.c2} numberOfLines={1}>{h.view.current?.organization?.name ?? '—'}</T>
-                  <T style={s.c3} numberOfLines={1}>{h.view.current?.affiliation.title ?? '—'}</T>
-                  <T style={s.c4}>{h.view.lastMetAt ?? '—'}</T>
+                  <View style={[s.c1, s.nameCell]}>
+                    <Avatar name={h.view.contact.fullName} id={h.view.contact.id} size={34} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <T style={s.name} numberOfLines={1}>{h.view.contact.fullName}</T>
+                      <T variant="small" style={s.org} numberOfLines={1}>{[h.view.current?.organization?.name, h.view.current?.affiliation.title].filter(Boolean).join(' ・ ') || '—'}</T>
+                    </View>
+                  </View>
+                  <T style={[s.c4, numeric]} numberOfLines={1}>{h.view.lastMetAt ?? '—'}</T>
                   <View style={s.c5}><Badge label={STATUS_LABEL[h.view.contact.status]} tone={STATUS_TONE[h.view.contact.status]} /></View>
                 </Pressable>
               )}
@@ -135,6 +137,7 @@ export default function People() {
           {hits.length === 0 ? empty : null}
           {hits.map((h) => (
             <Pressable key={h.view.contact.id} accessibilityRole="link" onPress={() => router.push(`/people/${h.view.contact.id}`)} style={s.card} testID="people-card">
+              <Avatar name={h.view.contact.fullName} id={h.view.contact.id} size={44} />
               <View style={{ flex: 1 }}>
                 <T style={{ fontWeight: '700', fontSize: 17 }}>{h.view.contact.fullName}</T>
                 <T variant="muted" numberOfLines={1}>{[h.view.current?.organization?.name, h.view.current?.affiliation.title].filter(Boolean).join(' ・ ')}</T>
@@ -150,22 +153,23 @@ export default function People() {
 }
 
 const s = StyleSheet.create({
-  searchRow: { marginBottom: space.md },
-  search: { minHeight: 48, borderWidth: 1, borderColor: color.line, borderRadius: 12, paddingHorizontal: space.lg, fontSize: font.body, backgroundColor: color.white, color: color.ink, fontFamily: font.family },
+  searchRow: { marginBottom: space.lg },
+  search: { minHeight: 52, borderWidth: 1, borderColor: color.lineStrong, borderRadius: 12, paddingHorizontal: space.lg, fontSize: font.body, backgroundColor: color.surface, color: color.ink, fontFamily: font.family, ...elevation.card },
   desktopBody: { flex: 1, flexDirection: 'row', gap: space.lg, minHeight: 520 },
-  filters: { width: 200 },
-  table: { flex: 1.4, backgroundColor: color.white, borderWidth: 1, borderColor: color.line, borderRadius: 12, overflow: 'hidden' },
-  detail: { flex: 1, minWidth: 320, backgroundColor: color.white, borderWidth: 1, borderColor: color.line, borderRadius: 12, padding: space.md },
-  tr: { flexDirection: 'row', alignItems: 'center', minHeight: MIN_TAP, paddingHorizontal: space.md, borderBottomWidth: 1, borderBottomColor: '#EEF1F5', gap: space.sm },
-  trOn: { backgroundColor: color.primaryTint },
-  th: { backgroundColor: '#F2F5F9' },
-  thText: { fontWeight: '700', fontSize: 13, color: color.muted },
-  c1: { flex: 1.2 },
-  c2: { flex: 1.6 },
-  c3: { flex: 1.2 },
-  c4: { width: 100 },
-  c5: { width: 80 },
-  sheet: { backgroundColor: color.white, borderWidth: 1, borderColor: color.line, borderRadius: 12, padding: space.md },
-  card: { flexDirection: 'row', gap: space.md, alignItems: 'center', backgroundColor: color.white, borderWidth: 1, borderColor: color.line, borderRadius: 12, padding: space.md, minHeight: 64 },
-  held: { padding: space.md, borderRadius: 10, backgroundColor: color.warnBg, marginBottom: space.md },
+  filters: { width: 176 },
+  table: { flex: 1.6, backgroundColor: color.surface, borderWidth: 1, borderColor: color.line, borderRadius: 14, overflow: 'hidden', ...elevation.card },
+  detail: { flex: 1, minWidth: 300, backgroundColor: color.surface, borderWidth: 1, borderColor: color.line, borderRadius: 14, padding: space.lg, ...elevation.card },
+  tr: { flexDirection: 'row', alignItems: 'center', minHeight: 60, paddingHorizontal: space.lg, borderBottomWidth: 1, borderBottomColor: '#EFEDE6', gap: space.sm },
+  trOn: { backgroundColor: color.primaryTint, borderLeftWidth: 3, borderLeftColor: color.primary, paddingLeft: space.lg - 3 },
+  th: { backgroundColor: color.surfaceMuted, minHeight: 40 },
+  thText: { fontWeight: '700', fontSize: 12, color: color.muted, letterSpacing: 0.6 },
+  nameCell: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  name: { fontWeight: '700', flexShrink: 1 },
+  c1: { flex: 1, minWidth: 0 },
+  org: { color: color.muted },
+  c4: { width: 96, flexShrink: 0, fontSize: 14, color: color.muted },
+  c5: { width: 92, flexShrink: 0 },
+  sheet: { backgroundColor: color.surface, borderWidth: 1, borderColor: color.line, borderRadius: 14, padding: space.md },
+  card: { flexDirection: 'row', gap: space.md, alignItems: 'center', backgroundColor: color.surface, borderWidth: 1, borderColor: color.line, borderRadius: 14, padding: space.lg, minHeight: 72, ...elevation.card },
+  held: { padding: space.md, borderRadius: 10, backgroundColor: color.warnBg, borderLeftWidth: 4, borderLeftColor: color.warn, marginBottom: space.md },
 });

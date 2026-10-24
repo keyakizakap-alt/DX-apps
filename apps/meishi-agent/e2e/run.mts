@@ -142,7 +142,7 @@ async function createVault(page: Page, url: string, passcode?: string): Promise<
   assert.equal(await tid(page, 'recovery-key').count(), 0, '復旧キーが最初から表示されている');
   await tid(page, 'reveal-recovery-key').click();
   const key = (await tid(page, 'recovery-key').innerText()).trim();
-  const hint = await page.getByText(/復旧キーの \d+ 番目と \d+ 番目/).innerText();
+  const hint = await page.getByText(/MK1- の後の \d+ 番目と \d+ 番目/).innerText();
   const [, g1, g2] = hint.match(/(\d+) 番目と (\d+) 番目/)!;
   const groups = key.split('-');
   await tid(page, 'confirm-a').fill(groups[Number(g1)]!);

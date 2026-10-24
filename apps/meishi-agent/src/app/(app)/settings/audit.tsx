@@ -25,7 +25,7 @@ export default function Audit() {
     void app.verifyAudit().then(setChain);
   }, [app, session.snapshot]);
   return (
-    <Screen title="操作履歴" subtitle="日時・操作の種類・件数・結果だけを端末内に記録します（氏名や名刺の内容は記録しません）" back="/settings" testID="screen-audit">
+    <Screen title="操作履歴" back="/settings" testID="screen-audit">
       {chain ? (
         <Badge label={chain.ok ? '改ざん検知: 異常なし（ハッシュチェーン一致）' : '改ざん検知: 記録の不整合があります'} tone={chain.ok ? 'ok' : 'danger'} testID="audit-chain" />
       ) : null}
