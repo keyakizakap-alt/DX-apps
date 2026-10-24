@@ -23,6 +23,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
+          # The runner's cached 24.x can predate security releases; engines in
+          # package.json rejects it (engine-strict), so always fetch the latest.
+          check-latest: true
           cache: npm
       - run: npm ci
       - name: Dependency audit
