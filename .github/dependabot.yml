@@ -1,10 +1,32 @@
 version: 2
+# 依存の更新を毎週提案する。公開直後の版は数日待ってから取り込む（乗っ取られたリリース対策）。
+# 脆弱性の修正（security updates）は cooldown の対象外で、すぐに提案される。
 updates:
   - package-ecosystem: npm
-    directory: /
+    directories:
+      - "/"
+      - "/apps/meishi-agent"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
