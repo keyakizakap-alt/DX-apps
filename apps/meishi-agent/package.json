@@ -72,5 +72,10 @@
   "private": true,
   "engines": {
     "node": ">=22.18"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "4.6.7"
+    }
   }
 }

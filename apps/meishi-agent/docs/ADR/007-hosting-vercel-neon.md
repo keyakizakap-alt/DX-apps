@@ -26,6 +26,8 @@
 - 本番と同じ `pg` ドライバーを、PGlite のソケットサーバー越しに試験（型変換・プール・ROLLBACK）。
 - バンドル済み関数を読み込み、設定なし→503、設定あり→`/api/health` 200・未認証 401・Host 不一致 421 を確認。
 
+- **アプリ直下の `.vercelignore` が必須**: 無いと Vercel はリポジトリ直下の `.vercelignore`（ANGLE Review 用に `/apps` を除外）を使い、ビルドが `Missing script: "build:vercel"` で失敗する（2026-10-24 に実際に発生。[公式: Monorepos の .vercelignore](https://vercel.com/docs/deployments/vercel-ignore)）。`repo-hygiene.test.ts` で存在と内容を検査。
+
 ## 制約・未検証（デプロイ後に確認）
 - **Vercel 上での実動作は未検証**（関数のルーティング、CDN の見出し、Neon への接続、メール到達）。USER_ACTIONS #4b の手順で確認する。
 - 回数制限（IP 毎分600回など）は関数インスタンスのメモリ内。インスタンスが複数あると上限は緩くなる。OTP の1日上限・試行5回・容量上限は DB で判定するため有効。

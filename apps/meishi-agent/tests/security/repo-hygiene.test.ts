@@ -75,3 +75,19 @@ describe('Trusted Types script URL allowlist', () => {
     for (const bad of ['https://evil.example/ocr/worker.min.js', '/ocr/../evil.js', '/ocr/worker.min.js?x=1', '/evil.js', 'data:text/javascript,alert(1)', 'blob:https://meishi.example.invalid/abc', 'javascript:alert(1)', '//evil.example/sw.js']) expect(isAllowedScriptURL(bad, o), bad).toBe(false);
   });
 });
+
+describe('Vercel upload rules (.vercelignore)', () => {
+  // Without an app-level file Vercel falls back to the repository-root .vercelignore, which ignores
+  // /apps for the ANGLE Review deployment — the build then fails with `Missing script: "build:vercel"`.
+  const rules = () => readFileSync(join(ROOT, '.vercelignore'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  it('the app has its own .vercelignore', () => {
+    expect(() => rules(), 'apps/meishi-agent/.vercelignore がない。直し方: アプリ直下に .vercelignore を置く（無いとリポジトリ直下の /apps 除外が適用される）').not.toThrow();
+  });
+  it('excludes secrets and local data but keeps everything the build needs', () => {
+    const r = rules();
+    for (const must of ['.env', '.env.*', '.data/', 'node_modules/']) expect(r, `${must} を除外していない。直し方: .vercelignore に追加する`).toContain(must);
+    expect(r, '.env.example まで除外されている').toContain('!.env.example');
+    const needed = ['package.json', 'package-lock.json', 'vercel.json', 'app.json', 'src', 'server', 'scripts', 'public', 'assets'];
+    for (const n of needed) expect(r.some((p) => p.replace(/^\/|\/$/g, '') === n || p === '/*' || p === '*'), `${n} がアップロード対象から外れている。直し方: .vercelignore から該当行を消す`).toBe(false);
+  });
+});
