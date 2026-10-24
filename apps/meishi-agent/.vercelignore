@@ -1,0 +1,31 @@
+# Vercel upload exclusions for this app (Root Directory = apps/meishi-agent).
+# This file must exist: without it Vercel falls back to the repository-root .vercelignore,
+# which excludes /apps (the whole app) for the ANGLE Review deployment.
+# The build (npm ci → npm run build:vercel) needs: package*.json, vercel.json, src/, server/,
+# scripts/, public/, assets/, app.json, tsconfig.json, babel/metro configs.
+
+# never upload secrets or local data
+.env
+.env.*
+!.env.example
+.data/
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+
+# local build / test output (rebuilt on Vercel)
+node_modules/
+dist/
+.vercel/
+.expo/
+.vitest/
+test-results/
+playwright-report/
+
+# not needed to build or serve
+tests/
+e2e/
+docs/requirements/
