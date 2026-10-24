@@ -28,3 +28,6 @@ Node.js 公式が 2026-10-21 に High 4件を含む10件の脆弱性を修正し
 - [x] `.npmrc` に `engine-strict=true` を含む
 - [x] Node.js 24.22.1 で `npm ci` と `npm test` が終了コード0で終わる
 - [x] `.github/workflows/ci.yml` の setup-node に `check-latest: true` を含む
+- [x] `apps/meishi-agent/package.json` の `engines.node` が `^22.23.4 || ^24.22.1` で、`apps/meishi-agent/.npmrc` に `engine-strict=true` を含む
+- [x] `.github/workflows/meishi-agent.yml` の setup-node に `check-latest: true` を含む
+- [x] Node.js 24.22.1 で `cd apps/meishi-agent && npm run check` が終了コード0で終わる
