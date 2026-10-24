@@ -27,3 +27,4 @@ Node.js 公式が 2026-10-21 に High 4件を含む10件の脆弱性を修正し
 - [x] `package.json` の `engines.node` が `>=24.22.1 <25` である
 - [x] `.npmrc` に `engine-strict=true` を含む
 - [x] Node.js 24.22.1 で `npm ci` と `npm test` が終了コード0で終わる
+- [x] `.github/workflows/ci.yml` の setup-node に `check-latest: true` を含む
