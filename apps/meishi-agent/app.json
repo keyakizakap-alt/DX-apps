@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "名刺管理",
+    "slug": "meishi-agent",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.meishiagent",
+      "infoPlist": {
+        "NSCameraUsageDescription": "名刺を撮影して端末内で文字を読み取るためにカメラを使用します。"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#173F7A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.example.meishiagent",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "asyncRoutes": false,
+          "sitemap": false
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "名刺を撮影して端末内で文字を読み取るためにカメラを使用します。"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "保管庫のロック解除にFace IDを使用します。"
+        }
+      ],
+      "expo-sharing"
+    ],
+    "scheme": "meishi-agent",
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "syncUrl": ""
+    }
+  }
+}

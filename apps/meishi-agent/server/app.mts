@@ -1,0 +1,461 @@
+// HTTP API: account auth (e-mail OTP), owner-scoped ciphertext sync, encrypted blobs, the
+// consent-bound AI proxy, and static hosting of the web build with a strict CSP.
+// The owner of every query is taken from the authenticated session, never from the request body.
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { extname, join, normalize, resolve, sep } from 'node:path';
+import { z } from 'zod';
+import { ExternalDraftRequest, MAX_REQUEST_CHARS, canonicalJson, requestHash } from '../src/core/ai/request.ts';
+import { MAX_BLOB_BYTES, MAX_PULL, PushRequest, RecoveryEnvelopeWire } from '../src/core/sync/protocol.ts';
+import { AiRateLimitError, AiRefusalError, type AiProvider } from './ai-provider.mts';
+import { securityHeaders } from './headers.mts';
+import type { Sql } from './sql.mts';
+
+export { securityHeaders };
+
+export interface Mailer {
+  /** `idempotencyKey` is the challenge id, so provider-side retries never send twice. */
+  sendOtp(email: string, code: string, idempotencyKey?: string): Promise<void>;
+}
+
+export interface AppConfig {
+  sql: Sql;
+  secret: string; // HMAC pepper for e-mail and OTP hashes
+  mailer: Mailer;
+  ai?: AiProvider; // undefined → external AI disabled on this server
+  staticDir?: string;
+  secureCookies: boolean;
+  allowedOrigins: string[]; // exact origins allowed to call the API with cookies
+  /** Accepted Host headers (DNS-rebinding defence). Omit only in tests. */
+  allowedHosts?: string[];
+  now?: () => number;
+  log?: (line: Record<string, unknown>) => void;
+  /** Per-account limits (ciphertext). Defaults: 100,000 objects, 1 GiB of encrypted images. */
+  quota?: { maxObjects?: number; maxBlobBytes?: number };
+  /**
+   * Header carrying the client IP when behind a trusted proxy that overwrites it (Vercel:
+   * `x-real-ip`). Omit when the server is reached directly; never trust a client-set header.
+   */
+  clientIpHeader?: string;
+}
+
+const SESSION_TTL_MS = 30 * 24 * 3600 * 1000; // absolute lifetime
+const SESSION_IDLE_MS = 14 * 24 * 3600 * 1000; // expires after 14 days without use
+const OTP_DAILY_CAP = 10; // codes per e-mail address per 24h
+const OTP_TTL_MS = 10 * 60 * 1000;
+const RECENT_AUTH_MS = 10 * 60 * 1000;
+const MAX_JSON_BYTES = 4 * 1024 * 1024;
+
+class HttpError extends Error {
+  readonly status: number;
+  readonly code: string;
+  constructor(status: number, code: string, message = code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+type Ctx = { req: IncomingMessage; res: ServerResponse; url: URL; ip: string };
+type Auth = { accountId: string; deviceId: string; createdAt: number };
+
+export function createApp(cfg: AppConfig) {
+  const now = cfg.now ?? Date.now;
+  const log = cfg.log ?? ((line) => console.log(JSON.stringify(line)));
+  const db = cfg.sql;
+  const hmac = (v: string) => createHmac('sha256', cfg.secret).update(v).digest('hex');
+  const sha = (v: string) => createHash('sha256').update(v).digest('hex');
+  const hexId = (prefix: string) => `${prefix}_${randomBytes(12).toString('hex')}`;
+  const count = async (text: string, ...params: unknown[]) => Number((await db.get<{ n: number }>(text, ...params))?.n ?? 0);
+  const buckets = new Map<string, { tokens: number; at: number }>();
+  const maxObjects = cfg.quota?.maxObjects ?? 100_000;
+  const maxBlobBytes = cfg.quota?.maxBlobBytes ?? 1024 * 1024 * 1024;
+  // Over HTTPS the __Host- prefix pins the cookie to this exact host (no Domain, Path=/, Secure).
+  const COOKIE = cfg.secureCookies ? '__Host-mc_session' : 'mc_session';
+
+  function rateLimit(key: string, perMinute: number) {
+    const t = now();
+    const b = buckets.get(key) ?? { tokens: perMinute, at: t };
+    b.tokens = Math.min(perMinute, b.tokens + ((t - b.at) / 60_000) * perMinute);
+    b.at = t;
+    if (b.tokens < 1) throw new HttpError(429, 'rate_limited', '操作が多すぎます。しばらく待ってから再試行してください。');
+    b.tokens -= 1;
+    buckets.set(key, b);
+    if (buckets.size > 50_000) buckets.clear();
+  }
+
+  // ---- helpers -------------------------------------------------------------------------------
+
+  async function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
+    const declared = Number(req.headers['content-length'] ?? 0);
+    if (declared > limit) throw new HttpError(413, 'too_large');
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size > limit) throw new HttpError(413, 'too_large');
+      chunks.push(chunk as Buffer);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  async function json<T>(ctx: Ctx, schema: z.ZodType<T>): Promise<T> {
+    if (!String(ctx.req.headers['content-type'] ?? '').startsWith('application/json')) throw new HttpError(415, 'json_required');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse((await readBody(ctx.req, MAX_JSON_BYTES)).toString('utf8'));
+    } catch {
+      throw new HttpError(400, 'invalid_json');
+    }
+    const result = schema.safeParse(parsed);
+    if (!result.success) throw new HttpError(400, 'invalid_request');
+    return result.data;
+  }
+
+  function send(res: ServerResponse, status: number, body?: unknown, headers: Record<string, string> = {}) {
+    res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers });
+    res.end(body === undefined ? '' : JSON.stringify(body));
+  }
+
+  function cookieHeader(token: string | null) {
+    const attrs = [`${COOKIE}=${token ?? ''}`, cfg.secureCookies ? 'Path=/' : 'Path=/api', 'HttpOnly', 'SameSite=Strict', token ? `Max-Age=${SESSION_TTL_MS / 1000}` : 'Max-Age=0'];
+    if (cfg.secureCookies) attrs.push('Secure');
+    return attrs.join('; ');
+  }
+
+  /** CSRF defence: custom header (forces CORS preflight, which we never grant) + Origin check. */
+  function checkCsrf(ctx: Ctx) {
+    if (ctx.req.method === 'GET' || ctx.req.method === 'HEAD') return;
+    if (!ctx.req.headers['x-meishi-client']) throw new HttpError(403, 'csrf');
+    const origin = ctx.req.headers.origin;
+    if (origin && !cfg.allowedOrigins.includes(origin)) throw new HttpError(403, 'origin');
+  }
+
+  async function authenticate(ctx: Ctx): Promise<Auth> {
+    const bearer = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(String(ctx.req.headers.authorization ?? ''))?.[1];
+    const cookie = String(ctx.req.headers.cookie ?? '')
+      .split(';')
+      .map((c) => c.trim().split('='))
+      .find(([k]) => k === COOKIE)?.[1];
+    const token = bearer ?? cookie;
+    if (!token) throw new HttpError(401, 'unauthorized', 'サインインが必要です');
+    const row = await db.get<{ account_id: string; device_id: string; created_at: number; expires_at: number; revoked: number; last_used_at: number; device_revoked: number }>(
+      `SELECT s.account_id, s.device_id, s.created_at, s.expires_at, s.revoked, s.last_used_at, d.revoked AS device_revoked
+       FROM sessions s JOIN devices d ON d.id = s.device_id WHERE s.token_hash = ?`,
+      sha(token),
+    );
+    const idle = row ? now() - Math.max(row.last_used_at, row.created_at) > SESSION_IDLE_MS : true;
+    if (!row || row.revoked || row.device_revoked || row.expires_at < now() || idle) throw new HttpError(401, 'unauthorized', 'セッションの有効期限が切れました。再度サインインしてください。');
+    await db.run('UPDATE sessions SET last_used_at = ? WHERE token_hash = ?', now(), sha(token));
+    await db.run('UPDATE devices SET last_seen_at = ? WHERE id = ?', new Date(now()).toISOString(), row.device_id);
+    return { accountId: row.account_id, deviceId: row.device_id, createdAt: row.created_at };
+  }
+
+  // ---- routes --------------------------------------------------------------------------------
+
+  const routes: Array<{ method: string; path: RegExp; handler: (ctx: Ctx, m: RegExpExecArray) => Promise<void> }> = [];
+  const route = (method: string, path: RegExp, handler: (ctx: Ctx, m: RegExpExecArray) => Promise<void>) => routes.push({ method, path, handler });
+
+  route('GET', /^\/api\/health$/, async (ctx) => send(ctx.res, 200, { ok: true, ai: Boolean(cfg.ai), aiDestination: cfg.ai?.destination ?? null, aiInfo: cfg.ai?.info ?? null }));
+
+  route('POST', /^\/api\/auth\/start$/, async (ctx) => {
+    rateLimit(`otp-ip:${ctx.ip}`, 10);
+    const { email } = await json(ctx, z.object({ email: z.email().max(254) }).strict());
+    const emailHmac = hmac(email.trim().toLowerCase());
+    rateLimit(`otp-email:${emailHmac}`, 3);
+    const n = await count('SELECT COUNT(*) AS n FROM otp_challenges WHERE email_hmac = ? AND expires_at > ?', emailHmac, now() - 24 * 3600 * 1000 + OTP_TTL_MS);
+    if (n >= OTP_DAILY_CAP) throw new HttpError(429, 'rate_limited', '確認コードの送信回数が上限に達しました。24時間後に再試行してください。');
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const challengeId = hexId('ch');
+    await db.run('INSERT INTO otp_challenges (id, email_hmac, code_hmac, expires_at) VALUES (?, ?, ?, ?)', challengeId, emailHmac, hmac(`${challengeId}:${code}`), now() + OTP_TTL_MS);
+    try {
+      await cfg.mailer.sendOtp(email.trim(), code, challengeId);
+    } catch {
+      throw new HttpError(502, 'mail_failed', '確認コードを送信できませんでした。時間をおいて再試行してください。');
+    }
+    // Same response whether or not the account exists (no account enumeration).
+    send(ctx.res, 200, { challengeId, expiresInSec: OTP_TTL_MS / 1000 });
+  });
+
+  route('POST', /^\/api\/auth\/verify$/, async (ctx) => {
+    rateLimit(`verify-ip:${ctx.ip}`, 20);
+    const body = await json(ctx, z.object({ challengeId: z.string().regex(/^ch_[0-9a-f]{24}$/), code: z.string().regex(/^\d{6}$/), deviceLabel: z.string().trim().min(1).max(40) }).strict());
+    const ch = await db.get<{ email_hmac: string; code_hmac: string; expires_at: number; attempts: number; consumed: number }>(
+      'SELECT email_hmac, code_hmac, expires_at, attempts, consumed FROM otp_challenges WHERE id = ?',
+      body.challengeId,
+    );
+    if (!ch || ch.consumed) throw new HttpError(400, 'otp_invalid', '確認コードが無効です。もう一度コードを送信してください。');
+    if (ch.expires_at < now()) throw new HttpError(400, 'otp_expired', '確認コードの有効期限が切れました。再送信してください。');
+    if (ch.attempts >= 5) throw new HttpError(429, 'otp_locked', '試行回数の上限に達しました。新しいコードを送信してください。');
+    const expected = Buffer.from(ch.code_hmac, 'hex');
+    const actual = Buffer.from(hmac(`${body.challengeId}:${body.code}`), 'hex');
+    if (!timingSafeEqual(expected, actual)) {
+      await db.run('UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = ?', body.challengeId);
+      throw new HttpError(400, 'otp_wrong', '確認コードが違います。');
+    }
+    const token = randomBytes(32).toString('base64url');
+    const result = await db.tx(async (q) => {
+      // Single use even under concurrent verifies: only the request that flips consumed 0→1 wins.
+      const won = await q.run('UPDATE otp_challenges SET consumed = 1 WHERE id = ? AND consumed = 0 AND attempts < 5', body.challengeId);
+      if (won !== 1) throw new HttpError(400, 'otp_invalid', '確認コードが無効です。もう一度コードを送信してください。');
+      const ts = new Date(now()).toISOString();
+      await q.run('INSERT INTO accounts (id, email_hmac, created_at) VALUES (?, ?, ?) ON CONFLICT (email_hmac) DO NOTHING', hexId('a'), ch.email_hmac, ts);
+      const account = (await q.get<{ id: string }>('SELECT id FROM accounts WHERE email_hmac = ?', ch.email_hmac))!;
+      const deviceId = hexId('d');
+      await q.run('INSERT INTO devices (id, account_id, label, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)', deviceId, account.id, body.deviceLabel, ts, ts);
+      await q.run('INSERT INTO sessions (token_hash, account_id, device_id, created_at, expires_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?)', sha(token), account.id, deviceId, now(), now() + SESSION_TTL_MS, now());
+      const hasVault = Boolean(await q.get('SELECT 1 AS x FROM vault_envelopes WHERE account_id = ?', account.id));
+      return { accountId: account.id, deviceId, hasVault };
+    });
+    const native = ctx.req.headers['x-meishi-client'] === 'native';
+    send(ctx.res, 200, { ...result, ...(native ? { token } : {}) }, native ? {} : { 'set-cookie': cookieHeader(token) });
+  });
+
+  route('POST', /^\/api\/auth\/logout$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    await db.run('UPDATE sessions SET revoked = 1 WHERE device_id = ? AND account_id = ?', auth.deviceId, auth.accountId);
+    send(ctx.res, 200, { ok: true }, { 'set-cookie': cookieHeader(null) });
+  });
+
+  route('GET', /^\/api\/me$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    const hasVault = Boolean(await db.get('SELECT 1 AS x FROM vault_envelopes WHERE account_id = ?', auth.accountId));
+    send(ctx.res, 200, { accountId: auth.accountId, deviceId: auth.deviceId, hasVault });
+  });
+
+  route('GET', /^\/api\/devices$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    const devices = await db.all<{ id: string; revoked: number }>('SELECT id, label, created_at AS "createdAt", last_seen_at AS "lastSeenAt", revoked FROM devices WHERE account_id = ? ORDER BY created_at', auth.accountId);
+    send(ctx.res, 200, { devices: devices.map((d) => ({ ...d, revoked: Boolean(d.revoked), current: d.id === auth.deviceId })) });
+  });
+
+  route('POST', /^\/api\/devices\/(d_[0-9a-f]{24})\/revoke$/, async (ctx, m) => {
+    const auth = await authenticate(ctx);
+    const changed = await db.tx(async (q) => {
+      const n = await q.run('UPDATE devices SET revoked = 1 WHERE id = ? AND account_id = ?', m[1]!, auth.accountId);
+      await q.run('UPDATE sessions SET revoked = 1 WHERE device_id = ? AND account_id = ?', m[1]!, auth.accountId);
+      return n;
+    });
+    if (changed === 0) throw new HttpError(404, 'not_found');
+    send(ctx.res, 200, { ok: true });
+  });
+
+  route('GET', /^\/api\/vault$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    const row = await db.get<{ envelope_json: string }>('SELECT envelope_json FROM vault_envelopes WHERE account_id = ?', auth.accountId);
+    if (!row) throw new HttpError(404, 'no_vault');
+    send(ctx.res, 200, JSON.parse(row.envelope_json));
+  });
+
+  route('PUT', /^\/api\/vault$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    const env = await json(ctx, RecoveryEnvelopeWire);
+    // Insert, or replace only the envelope of the *same* vault (atomic; never swaps vaults).
+    const changed = await db.run(
+      `INSERT INTO vault_envelopes (account_id, vault_id, envelope_json, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (account_id) DO UPDATE SET envelope_json = excluded.envelope_json, updated_at = excluded.updated_at
+       WHERE vault_envelopes.vault_id = excluded.vault_id`,
+      auth.accountId, env.vaultId, JSON.stringify(env), new Date(now()).toISOString(),
+    );
+    if (changed === 0) throw new HttpError(409, 'vault_exists', 'このアカウントには別の保管庫が登録されています。');
+    send(ctx.res, 200, { ok: true });
+  });
+
+  route('POST', /^\/api\/sync\/push$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    rateLimit(`push:${auth.accountId}`, 120);
+    const body = await json(ctx, PushRequest);
+    if (body.deviceId !== auth.deviceId) throw new HttpError(403, 'device_mismatch');
+    const ts = new Date(now()).toISOString();
+    let newIds = 0;
+    for (const c of body.changes) if (!(await db.get('SELECT 1 AS x FROM objects WHERE account_id = ? AND object_id = ?', auth.accountId, c.objectId))) newIds++;
+    const n = await count('SELECT COUNT(*) AS n FROM objects WHERE account_id = ?', auth.accountId);
+    if (n + newIds > maxObjects) throw new HttpError(413, 'quota', '同期サーバーの保存容量（件数）の上限に達しました。端末内の変更は保存されています。');
+    type PushResult =
+      | { objectId: string; status: 'conflict'; current: { objectId: string; revision: number; deleted: boolean; envelope: string | null; seq: number } }
+      | { objectId: string; status: 'ok'; revision: number; seq: number };
+    const results = await db.tx(async (q) => {
+      // Lock this account's row first so concurrent pushes (other devices, other function
+      // instances) are serialised: revision checks below cannot race.
+      await q.run('UPDATE accounts SET seq = seq WHERE id = ?', auth.accountId);
+      const out: PushResult[] = [];
+      for (const c of body.changes) {
+        const cur = await q.get<{ revision: number; deleted: number; envelope: string | null; seq: number }>(
+          'SELECT revision, deleted, envelope, seq FROM objects WHERE account_id = ? AND object_id = ?',
+          auth.accountId,
+          c.objectId,
+        );
+        if ((cur?.revision ?? null) !== c.baseRevision && !(cur === undefined && c.baseRevision === null)) {
+          if (cur) {
+            out.push({ objectId: c.objectId, status: 'conflict', current: { objectId: c.objectId, revision: cur.revision, deleted: Boolean(cur.deleted), envelope: cur.envelope, seq: cur.seq } });
+            continue;
+          }
+          // Base revision given but object no longer exists on the server: treat as new.
+        }
+        const { seq } = (await q.get<{ seq: number }>('UPDATE accounts SET seq = seq + 1 WHERE id = ? RETURNING seq', auth.accountId))!;
+        const revision = (cur?.revision ?? 0) + 1;
+        await q.run(
+          `INSERT INTO objects (account_id, object_id, revision, deleted, envelope, seq, device_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT (account_id, object_id) DO UPDATE SET revision = excluded.revision, deleted = excluded.deleted, envelope = excluded.envelope, seq = excluded.seq, device_id = excluded.device_id, updated_at = excluded.updated_at`,
+          auth.accountId, c.objectId, revision, c.deleted ? 1 : 0, c.envelope, seq, auth.deviceId, ts,
+        );
+        out.push({ objectId: c.objectId, status: 'ok', revision, seq });
+      }
+      return out;
+    });
+    send(ctx.res, 200, { results });
+  });
+
+  route('GET', /^\/api\/sync\/pull$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    rateLimit(`pull:${auth.accountId}`, 240);
+    const cursor = Math.max(0, Number.parseInt(ctx.url.searchParams.get('cursor') ?? '0', 10) || 0);
+    const limit = Math.min(MAX_PULL, Math.max(1, Number.parseInt(ctx.url.searchParams.get('limit') ?? String(MAX_PULL), 10) || MAX_PULL));
+    const rows = await db.all<{ objectId: string; revision: number; deleted: number; envelope: string | null; seq: number }>(
+      'SELECT object_id AS "objectId", revision, deleted, envelope, seq FROM objects WHERE account_id = ? AND seq > ? ORDER BY seq LIMIT ?',
+      auth.accountId,
+      cursor,
+      limit + 1,
+    );
+    const page = rows.slice(0, limit);
+    send(ctx.res, 200, { changes: page.map((r) => ({ ...r, deleted: Boolean(r.deleted) })), cursor: page.at(-1)?.seq ?? cursor, hasMore: rows.length > limit });
+  });
+
+  route('PUT', /^\/api\/blobs\/([a-z]{1,4}_[0-9a-f]{24})$/, async (ctx, m) => {
+    const auth = await authenticate(ctx);
+    rateLimit(`blob:${auth.accountId}`, 300);
+    if (ctx.req.headers['content-type'] !== 'application/octet-stream') throw new HttpError(415, 'binary_required');
+    const data = await readBody(ctx.req, MAX_BLOB_BYTES);
+    if (data.length < 34 || data[0] !== 1 || data[1] !== 2) throw new HttpError(400, 'not_an_encrypted_blob'); // envelope v1, purpose=blob
+    const used = await count('SELECT CAST(COALESCE(SUM(size), 0) AS BIGINT) AS n FROM blobs WHERE account_id = ?', auth.accountId);
+    if (used + data.length > maxBlobBytes) throw new HttpError(413, 'quota', '同期サーバーの保存容量（画像）の上限に達しました。端末内の画像は保存されています。');
+    await db.run('INSERT INTO blobs (account_id, blob_id, data, size, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (account_id, blob_id) DO NOTHING', auth.accountId, m[1]!, data, data.length, new Date(now()).toISOString());
+    send(ctx.res, 200, { ok: true });
+  });
+
+  route('GET', /^\/api\/blobs\/([a-z]{1,4}_[0-9a-f]{24})$/, async (ctx, m) => {
+    const auth = await authenticate(ctx);
+    const row = await db.get<{ data: Uint8Array }>('SELECT data FROM blobs WHERE account_id = ? AND blob_id = ?', auth.accountId, m[1]!);
+    if (!row) throw new HttpError(404, 'not_found');
+    ctx.res.writeHead(200, { 'content-type': 'application/octet-stream', 'cache-control': 'no-store' });
+    ctx.res.end(Buffer.from(row.data));
+  });
+
+  route('DELETE', /^\/api\/blobs\/([a-z]{1,4}_[0-9a-f]{24})$/, async (ctx, m) => {
+    const auth = await authenticate(ctx);
+    await db.run('DELETE FROM blobs WHERE account_id = ? AND blob_id = ?', auth.accountId, m[1]!);
+    send(ctx.res, 200, { ok: true });
+  });
+
+  route('DELETE', /^\/api\/account$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    await json(ctx, z.object({ confirm: z.literal('DELETE') }).strict());
+    if (now() - auth.createdAt > RECENT_AUTH_MS) throw new HttpError(403, 'reauth_required', '安全のため、サインインし直してから削除してください。');
+    await db.run('DELETE FROM accounts WHERE id = ?', auth.accountId); // cascades to all rows
+    send(ctx.res, 200, { ok: true }, { 'set-cookie': cookieHeader(null) });
+  });
+
+  // ---- external AI (consent-bound) ------------------------------------------------------------
+
+  route('POST', /^\/api\/ai\/consent$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    if (!cfg.ai) throw new HttpError(503, 'ai_not_configured', '外部AIはこのサーバーで有効化されていません。');
+    const body = await json(ctx, z.object({ requestHash: z.string().regex(/^[0-9a-f]{64}$/), destination: z.string() }).strict());
+    if (body.destination !== cfg.ai.destination) throw new HttpError(409, 'destination_changed', '送信先が変わりました。もう一度内容を確認してください。');
+    const id = hexId('cg');
+    await db.run('INSERT INTO ai_consents (id, account_id, request_hash, expires_at) VALUES (?, ?, ?, ?)', id, auth.accountId, body.requestHash, now() + 5 * 60_000);
+    send(ctx.res, 200, { consentId: id, expiresInSec: 300 });
+  });
+
+  route('POST', /^\/api\/ai\/draft$/, async (ctx) => {
+    const auth = await authenticate(ctx);
+    rateLimit(`ai:${auth.accountId}`, 10);
+    if (!cfg.ai) throw new HttpError(503, 'ai_not_configured');
+    const body = await json(ctx, z.object({ consentId: z.string().regex(/^cg_[0-9a-f]{24}$/), request: ExternalDraftRequest }).strict());
+    if (canonicalJson(body.request).length > MAX_REQUEST_CHARS) throw new HttpError(413, 'too_large', '送信内容が長すぎます。');
+    if (body.request.destination !== cfg.ai.destination) throw new HttpError(409, 'destination_changed');
+    const hash = await requestHash(body.request);
+    // Atomically consume the consent only if it matches this exact request.
+    const consumed = await db.run('UPDATE ai_consents SET used = 1 WHERE id = ? AND account_id = ? AND request_hash = ? AND used = 0 AND expires_at > ?', body.consentId, auth.accountId, hash, now());
+    if (consumed !== 1) throw new HttpError(403, 'consent_invalid', '承認が無効です（内容の変更・期限切れ・使用済み）。もう一度確認してください。');
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 60_000);
+    try {
+      const draft = await cfg.ai.generate(body.request, abort.signal);
+      send(ctx.res, 200, { draft, destination: cfg.ai.destination });
+    } catch (e) {
+      if (e instanceof AiRateLimitError) throw new HttpError(429, 'ai_rate_limited', '外部AIの無料枠の上限に達しました。しばらく待つか、ローカルの下書きを利用してください。');
+      if (e instanceof AiRefusalError) throw new HttpError(422, 'ai_refused', 'AIが生成を辞退しました。ローカルの下書きを利用してください。');
+      throw new HttpError(502, 'ai_failed', '外部AIの呼び出しに失敗しました。ローカルの下書きを利用してください。');
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
+  // ---- static web build -----------------------------------------------------------------------
+
+  const MIME: Record<string, string> = {
+    '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json',
+    '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.wasm': 'application/wasm', '.gz': 'application/octet-stream', '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json',
+  };
+
+  function serveStatic(ctx: Ctx) {
+    if (!cfg.staticDir || (ctx.req.method !== 'GET' && ctx.req.method !== 'HEAD')) return false;
+    const root = resolve(cfg.staticDir);
+    let rel: string;
+    try {
+      rel = normalize(decodeURIComponent(ctx.url.pathname)).replace(/^(\.\.[/\\])+/, '');
+    } catch {
+      return false;
+    }
+    if (rel.split(/[\\/]/).some((seg) => seg.startsWith('.'))) return false; // no dotfiles / hidden paths
+    let file = join(root, rel);
+    if (!file.startsWith(root + sep) && file !== root) return false;
+    if (!existsSync(file) || statSync(file).isDirectory()) {
+      const html = `${file}.html`;
+      file = existsSync(html) ? html : join(root, 'index.html'); // SPA fallback
+      if (!existsSync(file)) return false;
+    }
+    const type = MIME[extname(file)] ?? 'application/octet-stream';
+    ctx.res.writeHead(200, { 'content-type': type, 'cache-control': type.startsWith('text/html') ? 'no-store' : 'public, max-age=3600' });
+    if (ctx.req.method === 'HEAD') ctx.res.end();
+    else createReadStream(file).pipe(ctx.res);
+    return true;
+  }
+
+  // ---- dispatcher -----------------------------------------------------------------------------
+
+  return async function handle(req: IncomingMessage, res: ServerResponse) {
+    const started = now();
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const proxied = cfg.clientIpHeader ? String(req.headers[cfg.clientIpHeader] ?? '').split(',')[0]!.trim() : '';
+    const ctx: Ctx = { req, res, url, ip: proxied || req.socket.remoteAddress || 'unknown' };
+    // Worker scripts get their CSP from their own response; inside the OCR/PDF workers the vendor
+    // code calls importScripts(string), so Trusted Types is enforced for the document only.
+    const workerScript = /^\/(ocr|pdfjs)\//.test(url.pathname);
+    for (const [k, v] of Object.entries(securityHeaders(cfg.secureCookies, workerScript))) res.setHeader(k, v);
+    let routeName = 'static';
+    try {
+      if (cfg.allowedHosts && !cfg.allowedHosts.includes(String(req.headers.host ?? '').toLowerCase())) throw new HttpError(421, 'host_not_allowed');
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'DELETE') throw new HttpError(405, 'method_not_allowed');
+      if (url.pathname.startsWith('/api/')) {
+        rateLimit(`ip:${ctx.ip}`, 600);
+        checkCsrf(ctx);
+        const match = routes.find((r) => r.method === req.method && r.path.test(url.pathname));
+        if (!match) throw new HttpError(404, 'not_found');
+        routeName = match.path.source;
+        await match.handler(ctx, match.path.exec(url.pathname)!);
+      } else if (!serveStatic(ctx)) {
+        send(res, 404, { error: 'not_found' });
+      }
+    } catch (e) {
+      const err = e instanceof HttpError ? e : new HttpError(500, 'server_error', 'サーバーエラーが発生しました');
+      if (!(e instanceof HttpError)) log({ level: 'error', route: routeName, error: e instanceof Error ? e.name : 'unknown' });
+      if (!res.headersSent) send(res, err.status, { error: err.code, message: err.message });
+      else res.end();
+    }
+    // Structured access log: no bodies, no query strings, no e-mail, no ids of people.
+    log({ at: new Date(started).toISOString(), method: req.method, route: routeName, status: res.statusCode, ms: now() - started });
+  };
+}
