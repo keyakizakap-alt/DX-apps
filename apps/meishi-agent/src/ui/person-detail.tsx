@@ -56,7 +56,7 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
       </Row>
 
       <Section title="連絡先">
-        {copied ? <Banner tone="warn">コピーしました。60秒後にクリップボードから消去します。</Banner> : null}
+        {copied ? <Banner tone="ok">コピーしました（60秒後に消去）</Banner> : null}
         {c.emails.length === 0 && c.phones.length === 0 ? <T variant="muted">連絡先は未登録です。</T> : null}
         {c.emails.map((e) => (
           <ContactRow key={e} label="メール" value={e} onCopy={() => copy(e)} />
@@ -83,7 +83,7 @@ export function PersonDetail({ id, compact }: { id: string; compact?: boolean })
       </Section>
 
       <Section title={`出会いの記録（${view.encounters.length}）`}>
-        {view.encounters.length === 0 ? <T variant="muted">まだ記録がありません。「出会いのメモ」から追加できます。</T> : null}
+        {view.encounters.length === 0 ? <T variant="muted">まだありません</T> : null}
         {view.encounters.map((e) => (
           <Pressable key={e.id} accessibilityRole="button" onPress={() => router.push({ pathname: `/people/${id}/encounter`, params: { encounterId: e.id } })} style={s.item} testID="encounter-row">
             <Row>

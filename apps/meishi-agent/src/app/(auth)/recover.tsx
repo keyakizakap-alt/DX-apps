@@ -23,7 +23,7 @@ function CreateConfirm() {
   const [b, setB] = useState('');
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [stored, setStored] = useState(false);
+  const [, setStored] = useState(false);
   const [revealed, setRevealed] = useState(false);
   if (!pending) {
     return (
@@ -36,9 +36,7 @@ function CreateConfirm() {
   const [g1, g2] = pending.groups;
   return (
     <Screen title="復旧キーを保管してください" subtitle="手順 1/2" narrow testID="screen-recover">
-      <Banner tone="danger" title="復旧キーを失うとデータは戻りません">
-        復旧キーは名刺データの合鍵です。運営者もサーバーも持っていません。紙に書く・パスワードマネージャーに保存するなど、この端末とは別の安全な場所に保管してください。
-      </Banner>
+      <Banner tone="danger" title="復旧キーを失うとデータは戻りません">別の場所に保管してください</Banner>
       <Card>
         <T variant="label">復旧キー</T>
         {revealed ? (
@@ -46,7 +44,7 @@ function CreateConfirm() {
             {pending.recoveryKey}
           </T>
         ) : (
-          <T variant="muted" testID="recovery-key-hidden">周囲に人がいないことを確認してから表示してください（のぞき見・画面共有に注意）。</T>
+          <T variant="muted" testID="recovery-key-hidden">••••• ••••• •••••</T>
         )}
         <Button label={revealed ? '復旧キーを隠す' : '復旧キーを表示'} kind="secondary" compact onPress={() => setRevealed(!revealed)} testID="reveal-recovery-key" />
         <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
@@ -55,18 +53,16 @@ function CreateConfirm() {
           ) : null}
           <Button label="コピー" kind="secondary" compact onPress={async () => { await copySensitive(pending.recoveryKey); setStored(true); }} accessibilityHint="60秒後にクリップボードから消去します" />
         </View>
-        <T variant="muted">コピーした場合は60秒後にクリップボードから消去します（他のアプリが先に読み取る可能性はあります）。</T>
       </Card>
       <View style={{ height: space.lg }} />
       <T variant="heading">手順 2/2 保管できたか確認</T>
-      <T variant="muted">復旧キーの {g1} 番目と {g2} 番目のブロック（MK1- を除き、ハイフン区切り）を入力してください。</T>
+      <T variant="muted">MK1- の後の {g1} 番目と {g2} 番目のブロック</T>
       {error ? <Banner tone="danger">{error}</Banner> : null}
       <Field label={`${g1} 番目のブロック`} testID="confirm-a" value={a} onChangeText={setA} autoCapitalize="characters" maxLength={5} />
       <Field label={`${g2} 番目のブロック`} testID="confirm-b" value={b} onChangeText={setB} autoCapitalize="characters" maxLength={5} />
       {Platform.OS === 'web' ? (
         <Field
           label="この端末用のパスコード（任意・10文字以上）"
-          hint="設定すると、このブラウザでは復旧キーの代わりにパスコードで解除できます。パスコードと端末固有の鍵の両方が必要です。"
           error={passcode ? passcodeProblem(passcode) ?? undefined : undefined}
           testID="new-passcode"
           value={passcode}
@@ -74,9 +70,7 @@ function CreateConfirm() {
           secureTextEntry
           autoComplete="new-password"
         />
-      ) : (
-        <T variant="muted">Face ID / 指紋認証が使える端末では、次回から生体認証で解除できます。</T>
-      )}
+      ) : null}
       <View style={{ gap: space.sm }}>
         <Button
           label="確認して保管庫を開く"
@@ -92,7 +86,6 @@ function CreateConfirm() {
             }
           }}
         />
-        {!stored ? <T variant="muted">保存またはコピーしてから確認に進んでください（手書きで控えた場合はそのまま確認できます）。</T> : null}
         <Button label="やめる" kind="ghost" onPress={() => { app.cancelCreateVault(); router.replace('/welcome'); }} />
       </View>
     </Screen>
@@ -107,13 +100,13 @@ function Restore() {
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState<string | null>(null);
   return (
-    <Screen title="既存の保管庫を復元" subtitle="別の端末で作成した保管庫を、この端末で開きます" back="/welcome" narrow testID="screen-restore">
+    <Screen title="既存の保管庫を復元" back="/welcome" narrow testID="screen-restore">
       {!state.account ? (
         <Banner tone="warn" action={<Button label="サインインする" compact onPress={() => router.push({ pathname: '/sign-in', params: { mode: 'restore' } })} />}>
           先に同期アカウントにサインインしてください。
         </Banner>
       ) : (
-        <Banner tone="ok">サインイン済み。復旧キーで保管庫を復号します（サーバーには暗号文のみがあります）。</Banner>
+        <Banner tone="ok">サインイン済み</Banner>
       )}
       {error ? <Banner tone="danger">{error}</Banner> : null}
       <Field label="復旧キー" testID="restore-key" value={key} onChangeText={setKey} autoCapitalize="characters" autoCorrect={false} placeholder="MK1-XXXXX-XXXXX-…" multiline />

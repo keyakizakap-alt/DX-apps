@@ -18,9 +18,8 @@ export default function Duplicates() {
   void session.snapshot;
 
   return (
-    <Screen title="重複候補" subtitle="似ている登録を比較し、人が判断します。自動統合はしません。" back testID="screen-duplicates">
-      <Banner tone="info">同姓同名の別人、共有アドレス（info@ など）、代表電話の一致は「一致度: 低」として表示します。</Banner>
-      {pairs.length === 0 ? <EmptyState title="重複候補はありません" body="判断済みの組み合わせは再表示しません。" testID="duplicates-empty" /> : null}
+    <Screen title="重複候補" back testID="screen-duplicates">
+      {pairs.length === 0 ? <EmptyState title="重複候補はありません" testID="duplicates-empty" /> : null}
       {pairs.map((p) => {
         const a = session.index.views.get(p.a.id)!;
         const b = session.index.views.get(p.b.id)!;

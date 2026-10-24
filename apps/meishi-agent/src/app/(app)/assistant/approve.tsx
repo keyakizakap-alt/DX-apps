@@ -54,10 +54,8 @@ export default function Approve() {
   const expiresIn = Math.max(0, Math.round((preview.createdAt + PREVIEW_TTL_MS - now) / 60000));
 
   return (
-    <Screen title="外部AIへの送信確認" subtitle="以下の内容を、この1回だけ外部AIに送信します" narrow testID="screen-approve">
-      <Banner tone="warn" title="送信すると端末内の暗号化の保護範囲を出ます">
-        送信した内容は外部AIの提供元で処理されます。保持期間・学習利用・処理地域は、運営者が提供元との契約条件を確認したうえでこの機能を有効にしています。確認できない場合は送信しないでください。
-      </Banner>
+    <Screen title="外部AIへの送信確認" subtitle="この1回だけ送信します" narrow testID="screen-approve">
+      <Banner tone="warn" title="送信した内容は外部AIの提供元で処理されます" />
       {preview.warnings.map((w) => (
         <Banner key={w} tone="danger" title="指示のような文が含まれています">{w}</Banner>
       ))}
@@ -79,7 +77,6 @@ export default function Approve() {
       <Card>
         <Toggle
           label="氏名・会社名・部署を伏せ字にして送る（推奨）"
-          description="外部AIには〔相手の氏名〕などの伏せ字だけが届き、返ってきた文面はこの端末で実名に戻します。会話メモ内の氏名・会社名も置き換えます。"
           value={preview.request.pseudonymized}
           onChange={(v) => rebuild(include, v)}
           disabled={Boolean(result)}
@@ -87,16 +84,15 @@ export default function Approve() {
         />
         {preview.request.pseudonymized ? (
           <T variant="small" testID="substitutions">
-            端末内だけで使う対応表（送信されません）: {Object.entries(preview.substitutions).map(([ph, real]) => `${ph}＝${real}`).join('、') || 'なし'}
+            対応表（送信されません）: {Object.entries(preview.substitutions).map(([ph, real]) => `${ph}＝${real}`).join('、') || 'なし'}
           </T>
         ) : (
-          <Banner tone="danger" title="実名がそのまま外部AIに送られます">伏せ字をオフにすると、氏名・会社名が提供元に届きます。必要な場合だけオフにしてください。</Banner>
+          <Banner tone="danger" title="実名がそのまま送られます" />
         )}
       </Card>
       <View style={{ height: space.md }} />
       <Card>
         <T variant="heading">送信する項目（外せます）</T>
-        <T variant="small" style={{ color: color.muted }}>メールアドレス・電話番号・名刺画像は送信できない設計です。</T>
         {all.map((k) => {
           const hasValue = Boolean(values[k]?.trim());
           return (
@@ -130,7 +126,7 @@ export default function Approve() {
           {result.caveats.map((c) => (
             <T key={c} variant="small" style={{ color: color.warn }}>※ {c}</T>
           ))}
-          <T variant="small" style={{ color: color.muted }}>生成内容は人物情報として保存されません。事実関係を確認してから使ってください。</T>
+          <T variant="small" style={{ color: color.muted }}>内容を確認してから使ってください</T>
           <Button label="下書きをコピー" onPress={async () => { await copySensitive(`${result.subject}\n\n${result.body}`); }} />
         </Card>
       ) : (

@@ -46,7 +46,7 @@ export default function SyncScreen() {
   };
 
   return (
-    <Screen title="同期・端末" subtitle="名刺は端末で暗号化され、サーバーには暗号文だけが保存されます" back="/settings" testID="screen-sync">
+    <Screen title="同期・端末" back="/settings" testID="screen-sync">
       <Row style={{ marginBottom: space.md }}>
         <Badge label={sync.label} tone={sync.tone} testID="sync-label" />
         <Badge label={`未送信 ${state.sync.pending}件`} tone={state.sync.pending ? 'warn' : 'neutral'} />
@@ -54,9 +54,7 @@ export default function SyncScreen() {
       </Row>
       {state.sync.status in errorHelp ? <Banner tone="warn" title="同期できていません">{`${errorHelp[state.sync.status]}${state.sync.lastError ? `（${state.sync.lastError}）` : ''}`}</Banner> : null}
       {state.sync.conflicts > 0 ? (
-        <Banner tone="danger" title={`競合が${state.sync.conflicts}件あります`} action={<Button label="競合を解決する" compact onPress={() => router.push('/settings/conflicts')} testID="open-conflicts" />}>
-          別の端末でも同じ項目が変更されました。どちらも消えていません。採用する内容を選んでください。
-        </Banner>
+        <Banner tone="danger" title={`競合が${state.sync.conflicts}件あります`} action={<Button label="競合を解決する" compact onPress={() => router.push('/settings/conflicts')} testID="open-conflicts" />} />
       ) : null}
       {!state.account ? (
         <Card>
@@ -87,9 +85,6 @@ export default function SyncScreen() {
                 <T variant="small">追加 {formatTime(d.createdAt)} ・ 最終利用 {formatTime(d.lastSeenAt)}</T>
               </Card>
             ))}
-            <Banner tone="neutral" title="端末を追加するには">
-              新しい端末でこのアプリを開き「既存のデータを復元する」→ 同じメールでサインイン → 復旧キーを入力します。ログアウトはサーバーへの接続を止めるもので、すでに復号されてオフラインにある端末のデータを消去できる保証はありません。
-            </Banner>
           </Section>
         </View>
       )}

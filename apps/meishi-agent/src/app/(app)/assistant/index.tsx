@@ -75,7 +75,7 @@ export default function Assistant() {
 
   const result = answer?.result;
   return (
-    <Screen title="AIアシスタント" subtitle="登録済みの名刺・メモを手がかりに、人物の検索や連絡準備を支援します" testID="screen-assistant">
+    <Screen title="AIアシスタント" testID="screen-assistant">
       <Row style={{ marginBottom: space.md }}>
         <Badge label="既定: ローカル処理（端末内）" tone="ok" />
         <Badge label={state.settings.externalAiEnabled ? '外部AI: 許可済み（送信は毎回承認）' : '外部AI: オフ'} tone={state.settings.externalAiEnabled ? 'warn' : 'neutral'} />
@@ -88,7 +88,6 @@ export default function Assistant() {
             <Chip key={s} label={s} onPress={() => run(s)} />
           ))}
         </Row>
-        <T variant="small" style={{ color: color.muted }}>AIは名刺の削除・統合・送信・共有・書き出しを行えません。名刺やメモに書かれた指示文は命令として扱いません。</T>
       </Card>
 
       {answer ? (
@@ -139,18 +138,17 @@ export default function Assistant() {
           {draft.assumptions.map((a) => (
             <T key={a} variant="small" style={{ color: color.warn }}>※ {a}</T>
           ))}
-          {copied ? <Banner tone="ok">コピーしました。メールソフトに貼り付けて、宛先と内容を確認してから送信してください。</Banner> : null}
+          {copied ? <Banner tone="ok">コピーしました</Banner> : null}
           <Row>
             <Button label="下書きをコピー" onPress={async () => { await copySensitive(`${draft.subject}\n\n${draft.body}`); setCopied(true); }} testID="copy-draft" />
             <Button label="外部AIで文面を整える…" kind="secondary" disabled={!externalReady} onPress={openExternal} testID="external-ai" />
           </Row>
           {!externalReady ? (
             <T variant="small" style={{ color: color.muted }}>
-              {!state.settings.externalAiEnabled ? '外部AIは設定でオフです（初期設定）。' : !state.account ? '外部AIの利用には同期アカウントへのサインインが必要です。' : 'サーバーで外部AIが有効化されていません（運営者の設定が必要）。'}
+              {!state.settings.externalAiEnabled ? '外部AI: オフ' : !state.account ? '外部AI: サインインが必要' : '外部AI: サーバー未設定'}
             </T>
           ) : null}
           {extError ? <Banner tone="danger">{extError}</Banner> : null}
-          <T variant="small" style={{ color: color.muted }}>このアプリはメールを送信しません。</T>
         </Card>
       ) : null}
     </Screen>

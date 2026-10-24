@@ -68,7 +68,7 @@ export default function EditPerson() {
   };
 
   return (
-    <Screen title="情報を修正" subtitle="手で修正した値はOCRの元データと区別して保存されます" back={`/people/${id}`} narrow testID="screen-edit-person">
+    <Screen title="情報を修正" back={`/people/${id}`} narrow testID="screen-edit-person">
       {error ? <Banner tone="danger">{error}</Banner> : null}
       <Field label="氏名" value={form.fullName} onChangeText={set('fullName')} required testID="edit-name" maxLength={80} />
       <Field label="よみ / ローマ字" value={form.fullNameKana} onChangeText={set('fullNameKana')} maxLength={80} />
@@ -78,7 +78,7 @@ export default function EditPerson() {
       <Field label="会社名" value={form.company} onChangeText={set('company')} maxLength={120} testID="edit-company" />
       <Field label="部署" value={form.department} onChangeText={set('department')} maxLength={120} />
       <Field label="役職" value={form.title} onChangeText={set('title')} maxLength={120} />
-      <Toggle label="異動・転職として以前の所属を履歴に残す" description="オフにすると、現在の所属の誤りを訂正します（履歴は増えません）。" value={asHistory} onChange={setAsHistory} />
+      <Toggle label="異動・転職として以前の所属を履歴に残す" value={asHistory} onChange={setAsHistory} />
       <T variant="label" style={{ marginTop: space.md }}>確認状態</T>
       <Row style={{ marginVertical: space.sm }}>
         {(['confirmed', 'needs_review', 'on_hold'] as const).map((s) => (

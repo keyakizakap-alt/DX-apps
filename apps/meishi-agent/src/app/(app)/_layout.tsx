@@ -72,10 +72,7 @@ export default function AppLayout() {
         <View style={s.sidebar} accessibilityRole="navigation" aria-label="メインメニュー">
           <View style={s.brandRow}>
             <Image source={MARK} style={s.mark} accessibilityIgnoresInvertColors alt="" />
-            <View>
-              <Text style={s.brand}>名刺管理</Text>
-              <Text style={s.brandSub}>端末内で暗号化</Text>
-            </View>
+            <Text style={s.brand}>名刺管理</Text>
           </View>
           {TABS.map((t) => (
             <NavItem key={t.href} label={t.label} icon={t.icon} active={isActive(t.href)} onPress={() => router.push(t.href)} count={t.href === '/people' && review ? cap99(review) : undefined} />
@@ -89,7 +86,6 @@ export default function AppLayout() {
             <Pressable accessibilityRole="button" onPress={() => router.push('/settings/sync')} accessibilityLabel={`同期状態: ${sync.label}`} style={{ minHeight: MIN_TAP, justifyContent: 'center' }}>
               <Badge label={sync.label} tone={sync.tone} testID="sync-status" />
             </Pressable>
-            <Text style={s.hint}>ショートカット  /  検索 ・ N  取り込み</Text>
             {lockButton}
           </View>
         </View>

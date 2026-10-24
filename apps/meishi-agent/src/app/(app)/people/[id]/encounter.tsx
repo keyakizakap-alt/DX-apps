@@ -66,7 +66,7 @@ export default function EncounterEdit() {
       <Field label="日付" value={form.date} onChangeText={set('date')} placeholder="2026-10-21" testID="enc-date" required />
       <Field label="イベント" value={form.event} onChangeText={set('event')} maxLength={120} testID="enc-event" />
       <Field label="場所" value={form.place} onChangeText={set('place')} maxLength={120} />
-      <Field label="会話の内容" value={form.conversation} onChangeText={set('conversation')} multiline maxLength={4000} testID="enc-conversation" hint="この内容は暗号化して保存・同期されます。AIの外部送信は、送信前に確認画面で内容を確認した場合のみ行われます。" />
+      <Field label="会話の内容" value={form.conversation} onChangeText={set('conversation')} multiline maxLength={4000} testID="enc-conversation" />
       <Field label="次の行動（フォロー予定）" value={form.nextAction} onChangeText={set('nextAction')} maxLength={400} testID="enc-next" />
       <T variant="label">記録の確かさ（本人メモ）</T>
       <Row style={{ marginVertical: space.sm }}>

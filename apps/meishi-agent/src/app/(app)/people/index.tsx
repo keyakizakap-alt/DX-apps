@@ -88,7 +88,7 @@ export default function People() {
   );
 
   return (
-    <Screen title="人物一覧" subtitle={`検索結果 ${hits.length}件 ・ 検索は端末内で行い、サーバーには送信しません`} testID="screen-people" scroll={!desktop}
+    <Screen title="人物一覧" subtitle={`${hits.length}件`} testID="screen-people" scroll={!desktop}
       actions={<Button label="＋ 取り込み" compact onPress={() => router.push('/scan')} />}>
       {unattachedCards.length ? (
         <Pressable onPress={() => router.push({ pathname: '/scan/review', params: { card: unattachedCards[0]!.id } })} accessibilityRole="button" style={s.held}>
