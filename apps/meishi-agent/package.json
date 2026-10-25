@@ -45,7 +45,7 @@
     "@types/pg": "8.23.1",
     "@types/react": "~19.3.0",
     "esbuild": "0.28.2",
-    "eslint": "^9.39.5",
+    "eslint": "^10.12.0",
     "eslint-config-expo": "~58.0.4",
     "fake-indexeddb": "^6.2.6",
     "playwright-core": "^1.56.1",
