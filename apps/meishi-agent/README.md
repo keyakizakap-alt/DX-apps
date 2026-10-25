@@ -33,7 +33,7 @@ apps/meishi-agent/
 
 ## 動かし方
 
-前提: Node.js **22.18 以上**（推奨 24 LTS）、Git。
+前提: Node.js **22.23.4 以上（22系）または 24.22.1 以上（24系）**（2026年10月のセキュリティ修正版。推奨 24 LTS）、Git。
 
 ### Windows（PowerShell）
 ```powershell
