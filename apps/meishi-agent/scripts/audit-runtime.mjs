@@ -5,11 +5,15 @@
 import { execSync } from 'node:child_process';
 
 const BUILD_TIME_ONLY = new Map([
-  // GHSA-86w9-cpqp-85rv (<= 1.4.0, no patched release as of 2026-10-24): RSA PKCS#1 v1.5 signature
-  // verification. Used only by @expo/cli for expo-updates code signing, which this app does not use;
-  // not in the web bundle or the server bundle. Remove as soon as a patched node-forge exists.
-  ['node-forge', 'expo CLI code-signing certificates (@expo/cli); no upstream fix yet'],
+  // node-forge was removed from this list on 2026-11-01: 1.4.2 fixes GHSA-86w9-cpqp-85rv and the
+  // other <= 1.4.0 advisories, and the lockfile now resolves it.
   ['braces', 'metro file watcher (micromatch)'],
+  // GHSA-3g3m-2fjr-6pw4 (glob 9.0.0 - 14.0.1) and GHSA-g3hv-75wg-m249 (minimatch < 11.0.1), published
+  // 2026-10-30. Pulled in by @expo/cli, @expo/config, @expo/config-plugins, @expo/fingerprint and
+  // @expo/metro-config; the fix needs a new Expo major. Verified 2026-11-01: absent from dist/ and
+  // .vercel/output/, not imported by server/ or src/.
+  ['glob', 'Expo CLI / config plugins / metro config file globbing'],
+  ['minimatch', 'Expo fingerprint / config plugins (via glob)'],
   ['micromatch', 'metro file watcher'],
   ['uuid', 'xcode project parser used by config plugins'],
   ['xcode', 'iOS prebuild config plugins'],
