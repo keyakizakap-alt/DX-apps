@@ -15,6 +15,12 @@ const BUILD_TIME_ONLY = new Map([
   ['glob', 'Expo CLI / config plugins / metro config file globbing'],
   ['minimatch', 'Expo fingerprint / config plugins (via glob)'],
   ['micromatch', 'metro file watcher'],
+  // GHSA-fc5q-39xc-vjpf (picomatch <= 4.0.7, ReDoS via attacker-supplied extglobs). No fixed release
+  // exists yet (4.0.7 is the latest, checked 2026-11-18). Pulled in by @expo/cli, @expo/metro-config,
+  // metro-file-map and tinyglobby; verified 2026-11-18: absent from dist/ and .vercel/output/, not
+  // imported by server/ or src/, and the globs it parses come from the repo, not from users.
+  // Remove this entry as soon as a fixed picomatch is published and the lockfile resolves it.
+  ['picomatch', 'Expo CLI / metro file map / tinyglobby (build-time globbing)'],
   ['uuid', 'xcode project parser used by config plugins'],
   ['xcode', 'iOS prebuild config plugins'],
 ]);
